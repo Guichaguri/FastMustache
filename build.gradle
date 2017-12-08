@@ -1,0 +1,18 @@
+apply plugin: 'java'
+
+group 'com.guichaguri.fastmustache'
+version '1.0.0'
+
+sourceCompatibility = targetCompatibility = "1.8"
+compileJava {
+    sourceCompatibility = targetCompatibility = "1.8"
+}
+
+
+repositories {
+    jcenter()
+}
+
+dependencies {
+    compile 'org.ow2.asm:asm-debug-all:5.2'
+}
