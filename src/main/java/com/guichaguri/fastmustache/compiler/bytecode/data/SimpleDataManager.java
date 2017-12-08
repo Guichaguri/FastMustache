@@ -16,7 +16,7 @@ import static com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator.*;
  *
  * @author Guichaguri
  */
-public class TemplateDataManager implements DataManager {
+public class SimpleDataManager implements DataManager {
 
     public static final Type DATA = Type.getType(TemplateData.class);
     public static final Type SCOPED_DATA = Type.getType(ScopedData.class);

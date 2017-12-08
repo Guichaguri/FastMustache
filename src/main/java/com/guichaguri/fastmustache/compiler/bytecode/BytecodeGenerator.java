@@ -21,7 +21,7 @@ import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 
-import static com.guichaguri.fastmustache.compiler.bytecode.data.TemplateDataManager.DATA;
+import static com.guichaguri.fastmustache.compiler.bytecode.data.SimpleDataManager.DATA;
 import static org.objectweb.asm.Opcodes.*;
 
 /**
@@ -31,7 +31,7 @@ import static org.objectweb.asm.Opcodes.*;
  */
 public class BytecodeGenerator {
 
-    public static final Type TEMPLATE = Type.getType(SimpleTemplate.class);
+    public static final Type SIMPLE_TEMPLATE = Type.getType(SimpleTemplate.class);
     public static final Type OBJECT_TEMPLATE = Type.getType(Template.class);
     public static final Type UTILS = Type.getType(TemplateUtils.class);
     public static final Type BUILDER = Type.getType(StringBuilder.class);
@@ -236,12 +236,12 @@ public class BytecodeGenerator {
                         + "Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/CallSite;", false);
         Handle method = new Handle(H_INVOKESTATIC, className, methodName, methodType.getDescriptor(), false);
 
-        mv.visitInvokeDynamicInsn("render", Type.getMethodDescriptor(TEMPLATE), lambda, methodType, method, methodType);
+        mv.visitInvokeDynamicInsn("render", Type.getMethodDescriptor(SIMPLE_TEMPLATE), lambda, methodType, method, methodType);
 
         mv.visitInsn(inverted ? ICONST_1 : ICONST_0);
 
         mv.visitMethodInsn(INVOKESTATIC, UTILS.getInternalName(), "renderSection", "(" + BUILDER.getDescriptor() +
-                DATA.getDescriptor() + STRING.getDescriptor() + TEMPLATE.getDescriptor() +"Z)" + BUILDER.getDescriptor(), false);
+                DATA.getDescriptor() + STRING.getDescriptor() + SIMPLE_TEMPLATE.getDescriptor() +"Z)" + BUILDER.getDescriptor(), false);
 
         BytecodeGenerator gen = new BytecodeGenerator(compiler, this, key, cw, data, className, classDesc);
         compiler.setGenerator(gen);

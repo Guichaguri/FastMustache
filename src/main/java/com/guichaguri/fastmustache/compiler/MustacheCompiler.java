@@ -3,7 +3,7 @@ package com.guichaguri.fastmustache.compiler;
 import com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator;
 import com.guichaguri.fastmustache.compiler.bytecode.data.ClassDataManager;
 import com.guichaguri.fastmustache.compiler.bytecode.data.DataManager;
-import com.guichaguri.fastmustache.compiler.bytecode.data.TemplateDataManager;
+import com.guichaguri.fastmustache.compiler.bytecode.data.SimpleDataManager;
 import com.guichaguri.fastmustache.compiler.bytecode.data.TypedDataManager;
 import com.guichaguri.fastmustache.template.MustacheType;
 import java.io.BufferedReader;
@@ -43,21 +43,21 @@ public class MustacheCompiler {
         cw.visit(52, ACC_PUBLIC + ACC_SUPER,
                 internalName, null,
                 BytecodeGenerator.OBJECT.getInternalName(),
-                new String[]{BytecodeGenerator.TEMPLATE.getInternalName()});
+                new String[]{BytecodeGenerator.SIMPLE_TEMPLATE.getInternalName()});
 
         cw.visitSource(fileName, null);
 
         createConstructor(cw, classDesc);
 
-        DataManager getter;
+        DataManager data;
 
-        if(types == null || types.isEmpty()) {
-            getter = new TypedDataManager(types);
+        if(types != null && !types.isEmpty()) {
+            data = new TypedDataManager(types);
         } else {
-            getter = new TemplateDataManager();
+            data = new SimpleDataManager();
         }
 
-        generator = new BytecodeGenerator(this, cw, getter, className, classDesc);
+        generator = new BytecodeGenerator(this, cw, data, className, classDesc);
 
         generator.insertMethodStart("render");
         interpreter.parse();
@@ -98,7 +98,7 @@ public class MustacheCompiler {
         return cw.toByteArray();
     }
 
-    protected void createConstructor(ClassWriter cw, String classDesc) {
+    private void createConstructor(ClassWriter cw, String classDesc) {
         Label start = new Label();
         Label end = new Label();
 
@@ -114,7 +114,7 @@ public class MustacheCompiler {
         mv.visitEnd();
     }
 
-    protected void createObjectRender(ClassWriter cw, String className, String classDesc, Type data) {
+    private void createObjectRender(ClassWriter cw, String className, String classDesc, Type data) {
         Label start = new Label();
         Label end = new Label();
 
