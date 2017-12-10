@@ -6,8 +6,8 @@ import com.guichaguri.fastmustache.compiler.bytecode.data.DataManager;
 import com.guichaguri.fastmustache.compiler.bytecode.data.SimpleDataManager;
 import com.guichaguri.fastmustache.compiler.bytecode.data.TypedDataManager;
 import com.guichaguri.fastmustache.template.MustacheType;
-import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.Reader;
 import java.util.Map;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
@@ -21,20 +21,18 @@ import static org.objectweb.asm.Opcodes.*;
  */
 public class MustacheCompiler {
 
-    private final MustacheInterpreter interpreter;
+    private final MustacheParser parser;
+    private final String templateName;
     private BytecodeGenerator generator;
 
     private int lambdaIdCounter = 0;
 
-    public MustacheCompiler(BufferedReader reader) {
-        this.interpreter = new MustacheInterpreter(this, reader);
+    public MustacheCompiler(String templateName, Reader reader) {
+        this.parser = new MustacheParser(this, reader);
+        this.templateName = templateName;
     }
 
-    public byte[] compile(String fileName, String className) throws IOException, CompilerException {
-        return compile(fileName, className, (Map<String, MustacheType>)null);
-    }
-
-    public byte[] compile(String fileName, String className, Map<String, MustacheType> types) throws IOException, CompilerException {
+    public byte[] compileSimple(String className, Map<String, MustacheType> types) throws IOException, CompilerException {
         ClassWriter cw = new ClassWriter(0);
 
         String internalName = className.replace('.', '/');
@@ -45,7 +43,7 @@ public class MustacheCompiler {
                 BytecodeGenerator.OBJECT.getInternalName(),
                 new String[]{BytecodeGenerator.SIMPLE_TEMPLATE.getInternalName()});
 
-        cw.visitSource(fileName, null);
+        cw.visitSource(templateName, null);
 
         createConstructor(cw, classDesc);
 
@@ -60,14 +58,14 @@ public class MustacheCompiler {
         generator = new BytecodeGenerator(this, cw, data, className, classDesc);
 
         generator.insertMethodStart("render");
-        interpreter.parse();
+        parser.parse();
         generator.insertMethodEnd();
 
         cw.visitEnd();
         return cw.toByteArray();
     }
 
-    public byte[] compile(String fileName, String className, Class<?> clazz) throws IOException, CompilerException {
+    public byte[] compile(String className, Class<?> clazz) throws IOException, CompilerException {
         ClassWriter cw = new ClassWriter(0);
 
         Type clazzType = Type.getType(clazz);
@@ -82,7 +80,7 @@ public class MustacheCompiler {
                 BytecodeGenerator.OBJECT.getInternalName(),
                 new String[]{BytecodeGenerator.OBJECT_TEMPLATE.getInternalName()});
 
-        cw.visitSource(fileName, null);
+        cw.visitSource(templateName, null);
 
         createConstructor(cw, classDesc);
         createObjectRender(cw, internalName, classDesc, clazzType);
@@ -91,7 +89,7 @@ public class MustacheCompiler {
         generator = new BytecodeGenerator(this, cw, getter, internalName, classDesc);
 
         generator.insertMethodStart("render");
-        interpreter.parse();
+        parser.parse();
         generator.insertMethodEnd();
 
         cw.visitEnd();
@@ -132,6 +130,10 @@ public class MustacheCompiler {
         //mv.visitLocalVariable("obj", data.getDescriptor(), null, start, end, 1);
         mv.visitMaxs(2, 2);
         mv.visitEnd();
+    }
+
+    public String getTemplateName() {
+        return templateName;
     }
 
     public BytecodeGenerator getGenerator() {
