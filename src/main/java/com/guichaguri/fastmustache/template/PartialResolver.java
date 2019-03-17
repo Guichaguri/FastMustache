@@ -1,4 +1,4 @@
-package com.guichaguri.fastmustache.compiler.options;
+package com.guichaguri.fastmustache.template;
 
 import java.io.IOException;
 import java.io.Reader;

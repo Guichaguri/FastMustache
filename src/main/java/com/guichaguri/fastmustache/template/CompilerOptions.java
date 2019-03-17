@@ -1,4 +1,4 @@
-package com.guichaguri.fastmustache.compiler.options;
+package com.guichaguri.fastmustache.template;
 
 /**
  * @author Guichaguri
@@ -9,7 +9,7 @@ public class CompilerOptions {
 
     private String delimiterLeft = "{{";
     private String delimiterRight = "}}";
-    private boolean defaultDelimiters = true;
+    private boolean escapingEnabled = true;
     private PartialResolver resolver;
 
     public String getDelimiterLeft() {
@@ -20,12 +20,16 @@ public class CompilerOptions {
         return delimiterRight;
     }
 
-    public boolean isUsingDefaultDelimiters() {
-        return defaultDelimiters;
-    }
-
     public PartialResolver getResolver() {
         return resolver;
+    }
+
+    public boolean isEscapingEnabled() {
+        return escapingEnabled;
+    }
+
+    public void setEscapingEnabled(boolean escapingEnabled) {
+        this.escapingEnabled = escapingEnabled;
     }
 
     public void setDelimiterLeft(String delimiterLeft) {
