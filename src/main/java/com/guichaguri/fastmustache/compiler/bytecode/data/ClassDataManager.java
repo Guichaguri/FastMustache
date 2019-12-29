@@ -1,6 +1,7 @@
 package com.guichaguri.fastmustache.compiler.bytecode.data;
 
 import com.guichaguri.fastmustache.compiler.CompilerException;
+import com.guichaguri.fastmustache.compiler.bytecode.LocalVariable;
 import com.guichaguri.fastmustache.template.MustacheType;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
@@ -10,7 +11,7 @@ import java.util.LinkedList;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 
-import static com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator.*;
+import static com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator2.*;
 import static org.objectweb.asm.Opcodes.*;
 
 /**
@@ -24,7 +25,7 @@ public class ClassDataManager implements DataManager {
     private final Class<?> clazz;
     private final Type clazzType;
 
-    private LinkedList<Integer> vars = new LinkedList<>();
+    private LinkedList<LocalVariable> vars = new LinkedList<>();
     private LinkedList<Class<?>> classes = new LinkedList<>();
 
     public ClassDataManager(Class<?> clazz, Type type) {
@@ -48,7 +49,7 @@ public class ClassDataManager implements DataManager {
     }
 
     @Override
-    public void insertObjectGetter(MethodVisitor mv, int var, String key) throws CompilerException {
+    public void insertObjectGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException {
         Class<?> type = insertGetter(mv, var, key, true).clazz;
 
         if(type.isPrimitive()) {
@@ -57,7 +58,7 @@ public class ClassDataManager implements DataManager {
     }
 
     @Override
-    public void insertStringGetter(MethodVisitor mv, int var, String key, boolean escaped) throws CompilerException {
+    public void insertStringGetter(MethodVisitor mv, LocalVariable var, String key, boolean escaped) throws CompilerException {
         Class<?> type = insertGetter(mv, var, key, true).clazz;
 
         // String.valueOf(...)
@@ -77,7 +78,7 @@ public class ClassDataManager implements DataManager {
     }
 
     @Override
-    public void insertBooleanGetter(MethodVisitor mv, int var, String key) throws CompilerException {
+    public void insertBooleanGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException {
         Class<?> type = insertGetter(mv, var, key, true).clazz;
 
         if(type == boolean.class) {
@@ -92,13 +93,16 @@ public class ClassDataManager implements DataManager {
             throw new CompilerException("Can't parse a primitive into a boolean: " + type);
         } else {
             // Boolean.parseBoolean(object.toString())
-            mv.visitMethodInsn(INVOKEVIRTUAL, OBJECT.getInternalName(), "toString", Type.getMethodDescriptor(STRING), false);
+
+            if (type != String.class) {
+                mv.visitMethodInsn(INVOKEVIRTUAL, OBJECT.getInternalName(), "toString", Type.getMethodDescriptor(STRING), false);
+            }
             mv.visitMethodInsn(INVOKESTATIC, "java/lang/Boolean", "parseBoolean", Type.getMethodDescriptor(STRING, Type.BOOLEAN_TYPE), false);
         }
     }
 
     @Override
-    public MemberType insertArrayGetter(MethodVisitor mv, int var, String key) throws CompilerException {
+    public MemberType insertArrayGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException {
         MemberType type = insertGetter(mv, var, key, false);
 
         if(!type.clazz.isArray() && !Collection.class.isAssignableFrom(type.clazz)) {
@@ -109,13 +113,13 @@ public class ClassDataManager implements DataManager {
     }
 
     @Override
-    public void loadDataItem(MethodVisitor mv, int var, Class<?> type) {
+    public void loadDataItem(MethodVisitor mv, LocalVariable var, Class<?> type) {
         vars.add(var);
         classes.add(type);
     }
 
     @Override
-    public void unloadDataItem(MethodVisitor mv, int var) {
+    public void unloadDataItem(MethodVisitor mv, LocalVariable var) {
         int index = vars.indexOf(var);
 
         vars.remove(index);
@@ -157,7 +161,7 @@ public class ClassDataManager implements DataManager {
         }
     }
 
-    private MemberType insertGetter(MethodVisitor mv, int var, String key, boolean basicType) throws CompilerException {
+    private MemberType insertGetter(MethodVisitor mv, LocalVariable var, String key, boolean basicType) throws CompilerException {
         for(int i = vars.size() - 1; i >= 0; i--) {
             MemberType type = insertGetter(mv, classes.get(i), vars.get(i), key, basicType);
             if(type != null) return type;
@@ -169,13 +173,20 @@ public class ClassDataManager implements DataManager {
         throw new CompilerException("Couldn't find any field or method related to " + key);
     }
 
-    private MemberType insertGetter(MethodVisitor mv, Class<?> clazz, int var, String key, boolean basicType) {
+    private MemberType insertGetter(MethodVisitor mv, Class<?> clazz, LocalVariable var, String key, boolean basicType) {
+        if (key.equals(".")) {
+            // Implicit iterator - We'll return the variable itself instead of looking for a property
+            var.load(mv);
+            return new MemberType(clazz, Type.getType(clazz));
+        }
+
         Member[] members = findPath(clazz, key);
         if(members == null || members.length == 0) {
             return null;
         }
 
-        mv.visitVarInsn(ALOAD, var);
+        // Loads the variable into the stack
+        var.load(mv);
 
         for(int i = 0; i < members.length; i++) {
             Member member = members[i];

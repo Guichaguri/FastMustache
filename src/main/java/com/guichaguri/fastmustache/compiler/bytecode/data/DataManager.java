@@ -1,6 +1,7 @@
 package com.guichaguri.fastmustache.compiler.bytecode.data;
 
 import com.guichaguri.fastmustache.compiler.CompilerException;
+import com.guichaguri.fastmustache.compiler.bytecode.LocalVariable;
 import com.guichaguri.fastmustache.template.MustacheType;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
@@ -34,7 +35,7 @@ public interface DataManager {
      * @param var The data variable
      * @param key The key
      */
-    void insertObjectGetter(MethodVisitor mv, int var, String key) throws CompilerException;
+    void insertObjectGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException;
 
     /**
      * Loads into the stack a string
@@ -43,7 +44,7 @@ public interface DataManager {
      * @param key The key
      * @param escaped Whether the string must be escaped first
      */
-    void insertStringGetter(MethodVisitor mv, int var, String key, boolean escaped) throws CompilerException;
+    void insertStringGetter(MethodVisitor mv, LocalVariable var, String key, boolean escaped) throws CompilerException;
 
     /**
      * Loads into the stack a primitive boolean
@@ -51,7 +52,7 @@ public interface DataManager {
      * @param var The data variable
      * @param key The key
      */
-    void insertBooleanGetter(MethodVisitor mv, int var, String key) throws CompilerException;
+    void insertBooleanGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException;
 
     /**
      * Loads into the stack a collection or an array
@@ -60,19 +61,19 @@ public interface DataManager {
      * @param key The key
      * @return The array type
      */
-    MemberType insertArrayGetter(MethodVisitor mv, int var, String key) throws CompilerException;
+    MemberType insertArrayGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException;
 
     /**
      * Prepares a data item when it is loaded
      * @param var The data item local variable
      * @param type The data item type
      */
-    void loadDataItem(MethodVisitor mv, int var, Class<?> type) throws CompilerException;
+    void loadDataItem(MethodVisitor mv, LocalVariable var, Class<?> type) throws CompilerException;
 
     /**
-     * Cleans up any preparation done in {@link #loadDataItem(MethodVisitor, int, Class)}
+     * Cleans up any preparation done in {@link #loadDataItem(MethodVisitor, LocalVariable, Class)}
      * @param var The data item local variable
      */
-    void unloadDataItem(MethodVisitor mv, int var);
+    void unloadDataItem(MethodVisitor mv, LocalVariable var);
 
 }

@@ -1,6 +1,7 @@
 package com.guichaguri.fastmustache.compiler.bytecode.data;
 
 import com.guichaguri.fastmustache.compiler.CompilerException;
+import com.guichaguri.fastmustache.compiler.bytecode.LocalVariable;
 import com.guichaguri.fastmustache.data.ScopedData;
 import com.guichaguri.fastmustache.template.MustacheType;
 import com.guichaguri.fastmustache.template.TemplateData;
@@ -22,7 +23,7 @@ public class SimpleDataManager implements DataManager {
     public static final Type SCOPED_DATA = Type.getType(ScopedData.class);
 
     private final MemberType array = new MemberType(TemplateData[].class, TemplateData.class, Type.getType(TemplateData[].class));
-    private final LinkedList<Integer> vars = new LinkedList<>();
+    private final LinkedList<LocalVariable> vars = new LinkedList<>();
 
     @Override
     public Type getDataType() {
@@ -35,12 +36,12 @@ public class SimpleDataManager implements DataManager {
     }
 
     @Override
-    public void insertObjectGetter(MethodVisitor mv, int var, String key) throws CompilerException {
+    public void insertObjectGetter(MethodVisitor mv, LocalVariable var, String key) {
         insertStringGetter(mv, var, key, false);
     }
 
     @Override
-    public void insertStringGetter(MethodVisitor mv, int var, String key, boolean escaped) {
+    public void insertStringGetter(MethodVisitor mv, LocalVariable var, String key, boolean escaped) {
         loadVar(mv, var);
         mv.visitLdcInsn(key);
         mv.visitMethodInsn(INVOKEINTERFACE, DATA.getInternalName(), escaped ? "get" : "getUnescaped",
@@ -48,7 +49,7 @@ public class SimpleDataManager implements DataManager {
     }
 
     @Override
-    public void insertBooleanGetter(MethodVisitor mv, int var, String key) {
+    public void insertBooleanGetter(MethodVisitor mv, LocalVariable var, String key) {
         loadVar(mv, var);
         mv.visitLdcInsn(key);
         mv.visitMethodInsn(INVOKEINTERFACE, DATA.getInternalName(), "getBoolean",
@@ -56,7 +57,7 @@ public class SimpleDataManager implements DataManager {
     }
 
     @Override
-    public MemberType insertArrayGetter(MethodVisitor mv, int var, String key) {
+    public MemberType insertArrayGetter(MethodVisitor mv, LocalVariable var, String key) {
         loadVar(mv, var);
         mv.visitLdcInsn(key);
         mv.visitMethodInsn(INVOKEINTERFACE, DATA.getInternalName(), "getArray",
@@ -66,7 +67,7 @@ public class SimpleDataManager implements DataManager {
     }
 
     @Override
-    public void loadDataItem(MethodVisitor mv, int var, Class<?> type) throws CompilerException {
+    public void loadDataItem(MethodVisitor mv, LocalVariable var, Class<?> type) throws CompilerException {
         if(type != TemplateData.class) {
             throw new CompilerException("Can't parse a data item that is not a template data");
         }
@@ -76,26 +77,26 @@ public class SimpleDataManager implements DataManager {
             // d = new ScopedData(data, d);
             mv.visitTypeInsn(NEW, SCOPED_DATA.getInternalName());
             mv.visitInsn(DUP);
-            mv.visitVarInsn(ALOAD, vars.getLast());
-            mv.visitVarInsn(ALOAD, var);
+            vars.getLast().load(mv);
+            var.load(mv);
             mv.visitMethodInsn(INVOKESPECIAL, SCOPED_DATA.getInternalName(), "<init>",
                     Type.getMethodDescriptor(Type.VOID_TYPE, DATA, DATA), false);
-            mv.visitVarInsn(ASTORE, var);
+            var.store(mv);
         }
 
         vars.add(var);
     }
 
     @Override
-    public void unloadDataItem(MethodVisitor mv, int var) {
-        vars.remove((Integer)var);
+    public void unloadDataItem(MethodVisitor mv, LocalVariable var) {
+        vars.remove(var);
     }
 
-    private void loadVar(MethodVisitor mv, int var) {
+    private void loadVar(MethodVisitor mv, LocalVariable var) {
         if(!vars.isEmpty()) {
             var = vars.getLast();
         }
 
-        mv.visitVarInsn(ALOAD, var);
+        var.load(mv);
     }
 }
