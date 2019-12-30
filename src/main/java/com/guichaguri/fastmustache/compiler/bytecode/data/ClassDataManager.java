@@ -8,6 +8,9 @@ import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.LinkedList;
+import com.guichaguri.fastmustache.template.SimpleTemplate;
+import com.guichaguri.fastmustache.template.Template;
+import com.guichaguri.fastmustache.template.TemplateData;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 
@@ -49,12 +52,14 @@ public class ClassDataManager implements DataManager {
     }
 
     @Override
-    public void insertObjectGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException {
-        Class<?> type = insertGetter(mv, var, key, true).clazz;
+    public MemberType insertObjectGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException {
+        MemberType type = insertGetter(mv, var, key, true);
 
-        if(type.isPrimitive()) {
-            throw new CompilerException(key + " does not allow primitive types");
+        if(type.clazz.isPrimitive()) {
+            throw new CompilerException(key + " does not allow primitive types (" + type + ")");
         }
+
+        return type;
     }
 
     @Override
@@ -90,7 +95,7 @@ public class ClassDataManager implements DataManager {
             // b.booleanValue()
             mv.visitMethodInsn(INVOKEVIRTUAL, "java/lang/Boolean", "booleanValue", "()Z", false);
         } else if(type.isPrimitive()) {
-            throw new CompilerException("Can't parse a primitive into a boolean: " + type);
+            throw new CompilerException("Can't convert a primitive into a boolean: " + type + ". (" + key + ")");
         } else {
             // Boolean.parseBoolean(object.toString())
 
@@ -106,10 +111,40 @@ public class ClassDataManager implements DataManager {
         MemberType type = insertGetter(mv, var, key, false);
 
         if(!type.clazz.isArray() && !Collection.class.isAssignableFrom(type.clazz)) {
-            throw new CompilerException("Can't parse " + type + " into an array or collection");
+            throw new CompilerException("Can't convert " + type + " into an array or collection. (" + key + ")");
         }
 
         return type;
+    }
+
+    @Override
+    public MemberType insertPartialGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException {
+        MemberType type = insertGetter(mv, var, key, false);
+        Class<?> dataClass;
+
+        if(type.clazz == Template.class) {
+            dataClass = type.component;
+        } else if(type.clazz == SimpleTemplate.class) {
+            dataClass = TemplateData.class;
+        } else {
+            throw new CompilerException("Can't convert " + type + " into a template. (" + key + ")");
+        }
+
+        type = new MemberType(dataClass, Type.getType(dataClass));
+
+        for(int i = classes.size() - 1; i >= 0; i--) {
+            if (dataClass.isAssignableFrom(classes.get(i))) {
+                vars.get(i).load(mv);
+                return type;
+            }
+        }
+
+        if (dataClass.isAssignableFrom(clazz)) {
+            var.load(mv);
+            return type;
+        }
+
+        throw new CompilerException("No variable found that matches " + dataClass + ". (" + key + ")");
     }
 
     @Override
@@ -127,14 +162,18 @@ public class ClassDataManager implements DataManager {
     }
 
     private MustacheType getType(Class<?> clazz, String key) {
-        Method method = getMethod(clazz, key);
-        if(method != null) {
-            return getType(method.getReturnType());
+        Member[] members = findPath(clazz, key);
+
+        if (members == null || members.length == 0) {
+            return MustacheType.UNKNOWN;
         }
 
-        Field field = getField(clazz, key);
-        if(field != null) {
-            return getType(field.getType());
+        Member last = members[members.length - 1];
+
+        if (last instanceof Method) {
+            return getType(((Method) last).getReturnType());
+        } else if (last instanceof Field) {
+            return getType(((Field) last).getType());
         }
 
         return MustacheType.UNKNOWN;
@@ -145,22 +184,35 @@ public class ClassDataManager implements DataManager {
             if(c == boolean.class) {
                 return MustacheType.BOOLEAN;
             }
+
+            // Any primitive can be converted into a string
             return MustacheType.STRING;
         }
 
         if(Boolean.class.isAssignableFrom(c)) {
             return MustacheType.BOOLEAN;
-        } else if(MustacheType.class.isAssignableFrom(c)) {
+        } else if(MustacheType.class.isAssignableFrom(c)) { // TODO?
             return MustacheType.LAMBDA;
         } else if(String.class.isAssignableFrom(c) || Number.class.isAssignableFrom(c)) {
             return MustacheType.STRING;
         } else if(c.isArray() || Collection.class.isAssignableFrom(c)) {
             return MustacheType.ARRAY;
+        } else if(Template.class.isAssignableFrom(c)) {
+            return MustacheType.PARTIAL;
         } else {
+            // Any other object can be treated as data
             return MustacheType.DATA;
         }
     }
 
+    /**
+     * Searches and inserts a getter, loading the key into the stack
+     * @param mv The method visitor
+     * @param var The data local variable
+     * @param key The key
+     * @param basicType Whether the type returned will not contain the component
+     * @return The type added to the stack
+     */
     private MemberType insertGetter(MethodVisitor mv, LocalVariable var, String key, boolean basicType) throws CompilerException {
         for(int i = vars.size() - 1; i >= 0; i--) {
             MemberType type = insertGetter(mv, classes.get(i), vars.get(i), key, basicType);
@@ -173,6 +225,15 @@ public class ClassDataManager implements DataManager {
         throw new CompilerException("Couldn't find any field or method related to " + key);
     }
 
+    /**
+     * Tries to inserts a getter, loading the key into the stack
+     * @param mv The method visitor
+     * @param clazz The data class
+     * @param var The data local variable
+     * @param key The key
+     * @param basicType Whether the type returned will not contain the component
+     * @return The type added to the stack or {@code null} if nothing was added
+     */
     private MemberType insertGetter(MethodVisitor mv, Class<?> clazz, LocalVariable var, String key, boolean basicType) {
         if (key.equals(".")) {
             // Implicit iterator - We'll return the variable itself instead of looking for a property
@@ -194,12 +255,13 @@ public class ClassDataManager implements DataManager {
 
             if(member instanceof Method) {
 
+                // Inserts a method invocation
                 Method method = (Method)member;
                 Class<?> returnClass = method.getReturnType();
                 Class<?> declaringClass = method.getDeclaringClass();
                 Type returnType = Type.getType(returnClass);
-
                 boolean itf = declaringClass.isInterface();
+
                 mv.visitMethodInsn(itf ? INVOKEINTERFACE : INVOKEVIRTUAL, Type.getInternalName(declaringClass),
                         method.getName(), Type.getMethodDescriptor(returnType), itf);
 
@@ -209,6 +271,7 @@ public class ClassDataManager implements DataManager {
 
             } else if(member instanceof Field) {
 
+                // Inserts a field retrieval
                 Field field = (Field)member;
                 Class<?> fieldClass = field.getType();
                 Type fieldType = Type.getType(fieldClass);
@@ -227,6 +290,12 @@ public class ClassDataManager implements DataManager {
         return null;
     }
 
+    /**
+     * Finds the object path through fields and getters
+     * @param start The start class
+     * @param key The path
+     * @return The list of members composing this path or {@code null} if the path is invalid
+     */
     private Member[] findPath(Class<?> start, String key) {
         Class<?> context = start;
         String[] path = key.split("\\.");
@@ -255,6 +324,12 @@ public class ClassDataManager implements DataManager {
         return members;
     }
 
+    /**
+     * Tries to find a field with the specified name
+     * @param clazz The class to look into
+     * @param key The field name
+     * @return The field or {@code null}
+     */
     private Field getField(Class<?> clazz, String key) {
         try {
             return clazz.getField(key);
@@ -263,20 +338,26 @@ public class ClassDataManager implements DataManager {
         }
     }
 
+    /**
+     * Tries to find a getter method with the specified name
+     * @param clazz The class to look into
+     * @param key The method name
+     * @return The method or {@code null}
+     */
     private Method getMethod(Class<?> clazz, String key) {
         try {
             return clazz.getMethod(key);
-        } catch(Exception ex) {}
+        } catch(Exception ignored) {}
 
         String camelCase = Character.toUpperCase(key.charAt(0)) + key.substring(1);
 
         try {
             return clazz.getMethod("get" + camelCase);
-        } catch(Exception ex) {}
+        } catch(Exception ignored) {}
 
         try {
             return clazz.getMethod("is" + camelCase);
-        } catch(Exception ex) {}
+        } catch(Exception ignored) {}
 
         return null;
     }

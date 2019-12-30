@@ -5,12 +5,13 @@ import com.guichaguri.fastmustache.compiler.bytecode.LocalVariable;
 import com.guichaguri.fastmustache.data.ScopedData;
 import com.guichaguri.fastmustache.template.MustacheType;
 import com.guichaguri.fastmustache.template.TemplateData;
-import java.util.LinkedList;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
+import java.util.LinkedList;
 
+import static com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator.SIMPLE_TEMPLATE;
+import static com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator.STRING;
 import static org.objectweb.asm.Opcodes.*;
-import static com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator.*;
 
 /**
  * Generates the bytecode that gets data from a key using the {@link TemplateData} methods
@@ -20,9 +21,12 @@ import static com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator.*;
 public class SimpleDataManager implements DataManager {
 
     public static final Type DATA = Type.getType(TemplateData.class);
+    public static final Type DATA_ARRAY = Type.getType(TemplateData[].class);
     public static final Type SCOPED_DATA = Type.getType(ScopedData.class);
 
-    private final MemberType array = new MemberType(TemplateData[].class, TemplateData.class, Type.getType(TemplateData[].class));
+    private final MemberType STRING_TYPE = new MemberType(String.class, STRING);
+    private final MemberType ARRAY_TYPE = new MemberType(TemplateData[].class, TemplateData.class, DATA_ARRAY);
+    private final MemberType DATA_TYPE = new MemberType(TemplateData.class, DATA);
     private final LinkedList<LocalVariable> vars = new LinkedList<>();
 
     @Override
@@ -36,8 +40,10 @@ public class SimpleDataManager implements DataManager {
     }
 
     @Override
-    public void insertObjectGetter(MethodVisitor mv, LocalVariable var, String key) {
+    public MemberType insertObjectGetter(MethodVisitor mv, LocalVariable var, String key) {
         insertStringGetter(mv, var, key, false);
+
+        return STRING_TYPE;
     }
 
     @Override
@@ -61,9 +67,23 @@ public class SimpleDataManager implements DataManager {
         loadVar(mv, var);
         mv.visitLdcInsn(key);
         mv.visitMethodInsn(INVOKEINTERFACE, DATA.getInternalName(), "getArray",
-                Type.getMethodDescriptor(Type.getType(TemplateData[].class), STRING), true);
+                Type.getMethodDescriptor(DATA_ARRAY, STRING), true);
 
-        return array;
+        return ARRAY_TYPE;
+    }
+
+    @Override
+    public MemberType insertPartialGetter(MethodVisitor mv, LocalVariable var, String key) {
+        // Loads the partial into the stack
+        loadVar(mv, var);
+        mv.visitLdcInsn(key);
+        mv.visitMethodInsn(INVOKEINTERFACE, DATA.getInternalName(), "getPartial",
+                Type.getMethodDescriptor(SIMPLE_TEMPLATE, STRING), true);
+
+        // Loads the data into the stack
+        loadVar(mv, var);
+
+        return DATA_TYPE;
     }
 
     @Override

@@ -45,4 +45,10 @@ public class MemberType {
             component = (Class<?>)((ParameterizedType)method.getGenericReturnType()).getActualTypeArguments()[0];
         }
     }
+
+    @Override
+    public String toString() {
+        return clazz.toString();
+    }
+
 }

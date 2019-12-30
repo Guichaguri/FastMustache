@@ -20,7 +20,7 @@ public interface DataManager {
     Type getDataType();
 
     /**
-     * Gets the type from a key if possible
+     * Gets the type from a key or a type that the key can be converted to.
      *
      * It should return {@link MustacheType#UNKNOWN} if it's not possible.
      *
@@ -34,8 +34,9 @@ public interface DataManager {
      * @param mv The visitor
      * @param var The data variable
      * @param key The key
+     * @return The object type that has been loaded
      */
-    void insertObjectGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException;
+    MemberType insertObjectGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException;
 
     /**
      * Loads into the stack a string
@@ -62,6 +63,15 @@ public interface DataManager {
      * @return The array type
      */
     MemberType insertArrayGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException;
+
+    /**
+     * Loads into the stack a {@link com.guichaguri.fastmustache.template.Template} and the data parameter
+     * @param mv The visitor
+     * @param var The data variable
+     * @param key The key
+     * @return The data parameter type
+     */
+    MemberType insertPartialGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException;
 
     /**
      * Prepares a data item when it is loaded
