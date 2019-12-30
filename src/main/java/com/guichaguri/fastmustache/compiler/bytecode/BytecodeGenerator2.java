@@ -588,11 +588,11 @@ public class BytecodeGenerator2 {
     public void addPartial(String partial) throws CompilerException {
         loadVarStack(builderVar);
 
-        MemberType member = data.insertPartialGetter(mv, dataVar, partial);
+        data.insertPartialGetter(mv, dataVar, partial);
 
         // partial.render(data)
         mv.visitMethodInsn(INVOKEINTERFACE, TEMPLATE.getInternalName(), "render",
-                Type.getMethodDescriptor(STRING, member.clazzType), true);
+                Type.getMethodDescriptor(STRING, OBJECT), true);
 
         // builder.append(...)
         mv.visitMethodInsn(INVOKEVIRTUAL, BUILDER.getInternalName(), "append",
