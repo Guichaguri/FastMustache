@@ -11,12 +11,10 @@ import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Stack;
 
-import static com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator.BUILDER;
 import static org.objectweb.asm.Opcodes.*;
 
 public class BytecodeGenerator2 {
@@ -63,6 +61,9 @@ public class BytecodeGenerator2 {
         insertObjectRender();
     }
 
+    /**
+     * Inserts the default constructor
+     */
     public void insertConstructor() {
         Label start = new Label();
         Label end = new Label();
@@ -70,15 +71,22 @@ public class BytecodeGenerator2 {
         MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null);
         mv.visitCode();
         mv.visitLabel(start);
+
+        // super();
         mv.visitVarInsn(ALOAD, 0);
         mv.visitMethodInsn(INVOKESPECIAL, OBJECT.getInternalName(), "<init>", "()V", false);
+
         mv.visitInsn(RETURN);
+
         mv.visitLabel(end);
         mv.visitLocalVariable("this", clazzType.getDescriptor(), null, start, end, 0);
         mv.visitMaxs(1, 1);
         mv.visitEnd();
     }
 
+    /**
+     * Inserts the bridge render(Object) method
+     */
     public void insertObjectRender() {
         Label start = new Label();
         Label end = new Label();
@@ -88,11 +96,14 @@ public class BytecodeGenerator2 {
                 Type.getMethodDescriptor(STRING, OBJECT), null, null);
         mv.visitCode();
         mv.visitLabel(start);
+
+        // return render((T) obj)
         mv.visitVarInsn(ALOAD, 0);
         mv.visitVarInsn(ALOAD, 1);
         mv.visitTypeInsn(CHECKCAST, dataType.getInternalName());
         mv.visitMethodInsn(INVOKEVIRTUAL, clazzType.getInternalName(), "render", Type.getMethodDescriptor(STRING, dataType), false);
         mv.visitInsn(ARETURN);
+
         mv.visitLabel(end);
         mv.visitLocalVariable("this", clazzType.getDescriptor(), null, start, end, 0);
         mv.visitLocalVariable("obj", dataType.getDescriptor(), null, start, end, 1);
@@ -197,6 +208,9 @@ public class BytecodeGenerator2 {
         }
     }
 
+    /**
+     * Adds the token list into the method
+     */
     public void add(List<MustacheToken> tokens) throws CompilerException {
         for(MustacheToken token : tokens) {
             token.add(this, data);
@@ -281,13 +295,16 @@ public class BytecodeGenerator2 {
         //mv.visitFrame(F_APPEND, 1, new Object[]{BUILDER.getInternalName()}, 0, null);
     }
 
+    /**
+     * Adds a not null condition
+     */
     public void addObjectCondition(SectionToken token) throws CompilerException {
         Label ifEnd = new Label();
 
         // Clears the whole stack
         clearStack();
 
-        // Loads a boolean into the stack
+        // Loads the object into the stack
         data.insertObjectGetter(mv, dataVar, token.variable);
 
         // if(... == null) or if(... != null)
@@ -306,13 +323,10 @@ public class BytecodeGenerator2 {
     }
 
     /**
-     * Adds an array loop
+     * Adds a loop
      */
-    public void addArrayLoop(SectionToken token) throws CompilerException {
+    public void addLoop(SectionToken token) throws CompilerException {
         Label sectionStart = new Label();
-        Label sectionEnd = new Label();
-        Label loopStart = new Label();
-        Label loopEnd = new Label();
 
         clearStack();
 
@@ -320,6 +334,21 @@ public class BytecodeGenerator2 {
 
         // Gets the array
         MemberType member = data.insertArrayGetter(mv, dataVar, token.variable);
+
+        if (member.clazz.isArray()) {
+            addArrayLoop(token, member, sectionStart);
+        } else {
+            addCollectionLoop(token, member, sectionStart);
+        }
+    }
+
+    /**
+     * Adds an array loop
+     */
+    private void addArrayLoop(SectionToken token, MemberType member, Label sectionStart) throws CompilerException {
+        Label sectionEnd = new Label();
+        Label loopStart = new Label();
+        Label loopEnd = new Label();
 
         // Allocate variables
         LocalVariable varArray = insertLocalStart(member.clazzType.getDescriptor(), false, sectionStart);
@@ -330,7 +359,7 @@ public class BytecodeGenerator2 {
         // Store the array in a local variable
         mv.visitVarInsn(ASTORE, varArray.index);
 
-        // array.length
+        // length = array.length
         mv.visitVarInsn(ALOAD, varArray.index);
         mv.visitInsn(ARRAYLENGTH);
         mv.visitVarInsn(ISTORE, varLength.index);
@@ -387,38 +416,32 @@ public class BytecodeGenerator2 {
     /**
      * Adds a collection loop
      */
-    public void addCollectionLoop(SectionToken token) throws CompilerException {
-        Label sectionStart = new Label();
+    private void addCollectionLoop(SectionToken token, MemberType member, Label sectionStart) throws CompilerException {
         Label sectionEnd = new Label();
         Label loopStart = new Label();
         Label loopEnd = new Label();
 
         // Allocate variables
-        LocalVariable varArray = insertLocalStart("Ljava/util/Iterator;", false, sectionStart);
+        LocalVariable varIterator = insertLocalStart("Ljava/util/Iterator;", false, sectionStart);
         LocalVariable varObject = insertLocalStart(OBJECT.getDescriptor(), false, sectionStart);
 
-        clearStack();
-
-        mv.visitLabel(sectionStart);
-
-        MemberType member = data.insertArrayGetter(mv, dataVar, token.variable);
-
-        // collection.iterator()
+        // iterator = collection.iterator()
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Collection", "iterator", "()Ljava/util/Iterator;", true);
-        mv.visitVarInsn(ASTORE, varArray.index);
+        mv.visitVarInsn(ASTORE, varIterator.index);
 
         mv.visitLabel(loopStart);
 
         // Append a new frame preserving the same locals from the last one
-        mv.visitFrame(F_APPEND, 2, new Object[]{BUILDER.getInternalName(), "java/util/Iterator"}, 0, null);
+        // COMPUTE_FRAMES is enabled, so we'll leave the frame construction to the ASM lib
+        //mv.visitFrame(F_APPEND, 2, new Object[]{BUILDER.getInternalName(), "java/util/Iterator"}, 0, null);
 
         // if(iterator.hasNext()) break;
-        mv.visitVarInsn(ALOAD, varArray.index);
+        mv.visitVarInsn(ALOAD, varIterator.index);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Iterator", "hasNext", "()Z", true);
         mv.visitJumpInsn(IFEQ, loopEnd);
 
-        // (T)iterator.next()
-        mv.visitVarInsn(ALOAD, varArray.index);
+        // obj = (T)iterator.next()
+        mv.visitVarInsn(ALOAD, varIterator.index);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Iterator", "next", "()Ljava/lang/Object;", true);
         mv.visitTypeInsn(CHECKCAST, Type.getInternalName(member.component));
         mv.visitVarInsn(ASTORE, varObject.index);
@@ -442,7 +465,7 @@ public class BytecodeGenerator2 {
 
         mv.visitLabel(sectionEnd);
 
-        insertLocalEnd(varArray, sectionEnd);
+        insertLocalEnd(varIterator, sectionEnd);
         insertLocalEnd(varObject, sectionEnd);
     }
 
@@ -450,13 +473,19 @@ public class BytecodeGenerator2 {
      * Adds a lambda
      */
     public void addLambda(SectionToken token) {
-
+        // TODO
     }
 
+    /**
+     * Adds a partial
+     */
     public void addPartial(String partial) {
         //TODO
     }
 
+    /**
+     * Converts the generated class into a byte array
+     */
     public byte[] toByteArray() {
         return cw.toByteArray();
     }
