@@ -10,7 +10,12 @@ public class CompilerOptions {
     private String delimiterLeft = "{{";
     private String delimiterRight = "}}";
     private boolean escapingEnabled = true;
+
     private PartialResolver resolver;
+    private boolean variableNullChecksEnabled = false;
+    private boolean booleanNullChecksEnabled = false;
+    private boolean arrayNullChecksEnabled = false;
+    private boolean partialNullChecksEnabled = false;
 
     public String getDelimiterLeft() {
         return delimiterLeft;
@@ -26,6 +31,38 @@ public class CompilerOptions {
 
     public boolean isEscapingEnabled() {
         return escapingEnabled;
+    }
+
+    public boolean isVariableNullChecksEnabled() {
+        return variableNullChecksEnabled;
+    }
+
+    public void setVariableNullChecksEnabled(boolean variableNullChecksEnabled) {
+        this.variableNullChecksEnabled = variableNullChecksEnabled;
+    }
+
+    public boolean isBooleanNullChecksEnabled() {
+        return booleanNullChecksEnabled;
+    }
+
+    public void setBooleanNullChecksEnabled(boolean booleanNullChecksEnabled) {
+        this.booleanNullChecksEnabled = booleanNullChecksEnabled;
+    }
+
+    public boolean isArrayNullChecksEnabled() {
+        return arrayNullChecksEnabled;
+    }
+
+    public void setArrayNullChecksEnabled(boolean arrayNullChecksEnabled) {
+        this.arrayNullChecksEnabled = arrayNullChecksEnabled;
+    }
+
+    public boolean isPartialNullChecksEnabled() {
+        return partialNullChecksEnabled;
+    }
+
+    public void setPartialNullChecksEnabled(boolean partialNullChecksEnabled) {
+        this.partialNullChecksEnabled = partialNullChecksEnabled;
     }
 
     public void setEscapingEnabled(boolean escapingEnabled) {

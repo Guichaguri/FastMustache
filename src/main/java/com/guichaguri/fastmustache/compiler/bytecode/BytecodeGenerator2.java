@@ -5,6 +5,7 @@ import com.guichaguri.fastmustache.compiler.bytecode.data.DataManager;
 import com.guichaguri.fastmustache.compiler.bytecode.data.MemberType;
 import com.guichaguri.fastmustache.compiler.parser.tokens.MustacheToken;
 import com.guichaguri.fastmustache.compiler.parser.tokens.SectionToken;
+import com.guichaguri.fastmustache.template.CompilerOptions;
 import com.guichaguri.fastmustache.template.Template;
 import com.guichaguri.fastmustache.template.TemplateUtils;
 import org.objectweb.asm.ClassWriter;
@@ -25,6 +26,7 @@ public class BytecodeGenerator2 {
     public static final Type STRING = Type.getType(String.class);
     public static final Type OBJECT = Type.getType(Object.class);
 
+    private final CompilerOptions options;
     private final DataManager data;
     private final ClassWriter cw;
 
@@ -41,7 +43,8 @@ public class BytecodeGenerator2 {
     private List<LocalVariable> locals = new ArrayList<>();
     private Stack<LocalVariable> stack = new Stack<>();
 
-    public BytecodeGenerator2(String className, String templateName, DataManager data) {
+    public BytecodeGenerator2(String className, String templateName, CompilerOptions options, DataManager data) {
+        this.options = options;
         this.data = data;
         this.cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
 
@@ -308,7 +311,7 @@ public class BytecodeGenerator2 {
         data.insertObjectGetter(mv, dataVar, token.variable);
 
         // if(... == null) or if(... != null)
-        mv.visitJumpInsn(token.inverted ? IFNULL : IFNONNULL, ifEnd);
+        mv.visitJumpInsn(token.inverted ? IFNONNULL : IFNULL, ifEnd);
 
         // Inserts all tokens inside the condition
         add(token.content);
@@ -337,13 +340,13 @@ public class BytecodeGenerator2 {
 
         if (member.clazz.isArray()) {
             if (token.inverted) {
-                addEmptyArrayCondition(token);
+                addEmptyArrayCondition(token, member, sectionStart);
             } else {
                 addArrayLoop(token, member, sectionStart);
             }
         } else {
             if (token.inverted) {
-                addEmptyCollectionCondition(token);
+                addEmptyCollectionCondition(token, member, sectionStart);
             } else {
                 addCollectionLoop(token, member, sectionStart);
             }
@@ -367,7 +370,10 @@ public class BytecodeGenerator2 {
         // Store the array in a local variable
         mv.visitVarInsn(ASTORE, varArray.index);
 
-        // TODO check null
+        if (options.isArrayNullChecksEnabled()) {
+            mv.visitVarInsn(ALOAD, varArray.index);
+            mv.visitJumpInsn(IFNULL, sectionEnd);
+        }
 
         // length = array.length
         mv.visitVarInsn(ALOAD, varArray.index);
@@ -423,35 +429,67 @@ public class BytecodeGenerator2 {
         insertLocalEnd(varObject, loopEnd);
     }
 
-    private void addEmptyArrayCondition(SectionToken token) throws CompilerException {
+    private void addEmptyArrayCondition(SectionToken token, MemberType member, Label sectionStart) throws CompilerException {
         Label sectionEnd = new Label();
+        LocalVariable varArray = null;
 
-        // if(array.length == 0)
-        mv.visitInsn(ARRAYLENGTH);
-        mv.visitJumpInsn(IFNE, sectionEnd);
+        if (options.isArrayNullChecksEnabled()) {
+            Label contentStart = new Label();
 
-        // TODO check null
+            // As we'll need to use the array twice, we'll store it in a variable
+            varArray = insertLocalStart(member.clazzType.getDescriptor(), false, sectionStart);
+            mv.visitVarInsn(ASTORE, varArray.index);
+
+            // if(array == null)
+            mv.visitVarInsn(ALOAD, varArray.index);
+            mv.visitJumpInsn(IFNULL, contentStart);
+
+            // if(array.length == 0)
+            mv.visitVarInsn(ALOAD, varArray.index);
+            mv.visitInsn(ARRAYLENGTH);
+            mv.visitJumpInsn(IFNE, sectionEnd);
+
+            mv.visitLabel(contentStart);
+        } else {
+            // if(array.length == 0)
+            mv.visitInsn(ARRAYLENGTH);
+            mv.visitJumpInsn(IFNE, sectionEnd);
+        }
 
         add(token.content);
 
         clearStack();
 
         mv.visitLabel(sectionEnd);
+
+        if (varArray != null) {
+            insertLocalEnd(varArray, sectionEnd);
+        }
     }
 
     /**
      * Adds a collection loop
      */
     private void addCollectionLoop(SectionToken token, MemberType member, Label sectionStart) throws CompilerException {
-        Label sectionEnd = new Label();
         Label loopStart = new Label();
         Label loopEnd = new Label();
 
         // Allocate variables
+        LocalVariable varCollection = null;
         LocalVariable varIterator = insertLocalStart("Ljava/util/Iterator;", false, sectionStart);
         LocalVariable varObject = insertLocalStart(OBJECT.getDescriptor(), false, sectionStart);
 
-        // TODO check null
+        if (options.isArrayNullChecksEnabled()) {
+            // As we'll have to use the collection twice, we'll store it in a variable
+            varCollection = insertLocalStart(member.clazzType.getDescriptor(), false, sectionStart);
+            mv.visitVarInsn(ASTORE, varCollection.index);
+
+            // if(collection == null)
+            mv.visitVarInsn(ALOAD, varCollection.index);
+            mv.visitJumpInsn(IFNULL, loopEnd);
+
+            mv.visitVarInsn(ALOAD, varCollection.index);
+        }
 
         // iterator = collection.iterator()
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Collection", "iterator", "()Ljava/util/Iterator;", true);
@@ -491,28 +529,50 @@ public class BytecodeGenerator2 {
         // COMPUTE_FRAMES is enabled, so we'll leave the frame construction to the ASM lib
         //mv.visitFrame(F_CHOP, 1, null, 0, null);
 
-        mv.visitLabel(sectionEnd);
+        insertLocalEnd(varIterator, loopEnd);
+        insertLocalEnd(varObject, loopEnd);
 
-        insertLocalEnd(varIterator, sectionEnd);
-        insertLocalEnd(varObject, sectionEnd);
+        if (varCollection != null) {
+            insertLocalEnd(varCollection, loopEnd);
+        }
     }
 
-    private void addEmptyCollectionCondition(SectionToken token) throws CompilerException {
+    private void addEmptyCollectionCondition(SectionToken token, MemberType member, Label sectionStart) throws CompilerException {
         Label sectionEnd = new Label();
+        LocalVariable varCollection = null;
 
-        // collection.isEmpty()
-        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Collection", "isEmpty", "()Z", true);
+        if (options.isArrayNullChecksEnabled()) {
+            Label contentStart = new Label();
 
-        // if(...)
-        mv.visitJumpInsn(IFEQ, sectionEnd);
+            // As we'll have to use the collection twice, we'll store it in a variable
+            varCollection = insertLocalStart(member.clazzType.getDescriptor(), false, sectionStart);
+            mv.visitVarInsn(ASTORE, varCollection.index);
 
-        // TODO check null
+            // if(collection == null)
+            mv.visitVarInsn(ALOAD, varCollection.index);
+            mv.visitJumpInsn(IFNULL, contentStart);
+
+            // if(collection.isEmpty())
+            mv.visitVarInsn(ALOAD, varCollection.index);
+            mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Collection", "isEmpty", "()Z", true);
+            mv.visitJumpInsn(IFEQ, sectionEnd);
+
+            mv.visitLabel(contentStart);
+        } else {
+            // if(collection.isEmpty())
+            mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Collection", "isEmpty", "()Z", true);
+            mv.visitJumpInsn(IFEQ, sectionEnd);
+        }
 
         add(token.content);
 
         clearStack();
 
         mv.visitLabel(sectionEnd);
+
+        if (varCollection != null) {
+            insertLocalEnd(varCollection, sectionEnd);
+        }
     }
 
     /**
