@@ -1,6 +1,6 @@
 package com.guichaguri.fastmustache.compiler.parser.tokens;
 
-import com.guichaguri.fastmustache.compiler.CompilerException;
+import com.guichaguri.fastmustache.compiler.bytecode.CompilerException;
 import com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator2;
 import com.guichaguri.fastmustache.compiler.bytecode.data.DataManager;
 

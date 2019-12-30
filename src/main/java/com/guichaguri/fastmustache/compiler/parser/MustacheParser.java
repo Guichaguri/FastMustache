@@ -44,7 +44,7 @@ public class MustacheParser {
         return currentLine != null && !currentLine.isEmpty();
     }
 
-    public List<MustacheToken> parse() throws IOException {
+    public List<MustacheToken> parse() throws IOException, ParseException {
         if(!nextLine()) return tokens;
 
         StringBuilder text = new StringBuilder();
@@ -82,7 +82,7 @@ public class MustacheParser {
         return tokens;
     }
 
-    private void parseDelimiter(int start) throws IOException {
+    private void parseDelimiter(int start) throws IOException, ParseException {
         String tagContent;
         int d2 = currentLine.indexOf(delimiterRight, start);
 
@@ -132,7 +132,7 @@ public class MustacheParser {
         parseTag(tagContent.trim(), tripleDelimiter);
     }
 
-    private void parseTag(String tag, boolean tripleDelimiter) {
+    private void parseTag(String tag, boolean tripleDelimiter) throws ParseException {
         char symbol = tag.charAt(0);
 
         if(symbol == '!') {
@@ -237,7 +237,7 @@ public class MustacheParser {
         addToken(token);
     }
 
-    private SectionToken openSection(String variable, boolean inverted) {
+    private SectionToken openSection(String variable, boolean inverted) throws ParseException {
         if(variable.isEmpty()) {
             throw new ParseException("The section name cannot be empty", currentLineNumber, currentPos);
         }
@@ -252,7 +252,7 @@ public class MustacheParser {
         return token;
     }
 
-    private void addVariable(String variable, boolean escaped) {
+    private void addVariable(String variable, boolean escaped) throws ParseException {
         if(variable.isEmpty()) {
             throw new ParseException("The tag cannot be empty", currentLineNumber, currentPos);
         }
@@ -266,7 +266,7 @@ public class MustacheParser {
         addToken(token);
     }
 
-    private void addPartial(String partial) {
+    private void addPartial(String partial) throws ParseException {
         if(partial.isEmpty()) {
             throw new ParseException("The partial cannot be empty", currentLineNumber, currentPos);
         }

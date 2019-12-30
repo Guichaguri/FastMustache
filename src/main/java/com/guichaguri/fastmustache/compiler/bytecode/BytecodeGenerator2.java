@@ -1,6 +1,5 @@
 package com.guichaguri.fastmustache.compiler.bytecode;
 
-import com.guichaguri.fastmustache.compiler.CompilerException;
 import com.guichaguri.fastmustache.compiler.bytecode.data.DataManager;
 import com.guichaguri.fastmustache.compiler.bytecode.data.MemberType;
 import com.guichaguri.fastmustache.compiler.parser.tokens.MustacheToken;
@@ -131,6 +130,10 @@ public class BytecodeGenerator2 {
         builderVar = insertLocalStart(BUILDER.getDescriptor(), false, start);
 
         stack.push(builderVar);
+    }
+
+    public void insertMethodStart() {
+        insertMethodStart("render");
     }
 
     public void insertMethodEnd() {
