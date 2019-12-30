@@ -336,9 +336,17 @@ public class BytecodeGenerator2 {
         MemberType member = data.insertArrayGetter(mv, dataVar, token.variable);
 
         if (member.clazz.isArray()) {
-            addArrayLoop(token, member, sectionStart);
+            if (token.inverted) {
+                addEmptyArrayCondition(token);
+            } else {
+                addArrayLoop(token, member, sectionStart);
+            }
         } else {
-            addCollectionLoop(token, member, sectionStart);
+            if (token.inverted) {
+                addEmptyCollectionCondition(token);
+            } else {
+                addCollectionLoop(token, member, sectionStart);
+            }
         }
     }
 
@@ -358,6 +366,8 @@ public class BytecodeGenerator2 {
 
         // Store the array in a local variable
         mv.visitVarInsn(ASTORE, varArray.index);
+
+        // TODO check null
 
         // length = array.length
         mv.visitVarInsn(ALOAD, varArray.index);
@@ -413,6 +423,22 @@ public class BytecodeGenerator2 {
         insertLocalEnd(varObject, loopEnd);
     }
 
+    private void addEmptyArrayCondition(SectionToken token) throws CompilerException {
+        Label sectionEnd = new Label();
+
+        // if(array.length == 0)
+        mv.visitInsn(ARRAYLENGTH);
+        mv.visitJumpInsn(IFNE, sectionEnd);
+
+        // TODO check null
+
+        add(token.content);
+
+        clearStack();
+
+        mv.visitLabel(sectionEnd);
+    }
+
     /**
      * Adds a collection loop
      */
@@ -424,6 +450,8 @@ public class BytecodeGenerator2 {
         // Allocate variables
         LocalVariable varIterator = insertLocalStart("Ljava/util/Iterator;", false, sectionStart);
         LocalVariable varObject = insertLocalStart(OBJECT.getDescriptor(), false, sectionStart);
+
+        // TODO check null
 
         // iterator = collection.iterator()
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Collection", "iterator", "()Ljava/util/Iterator;", true);
@@ -467,6 +495,24 @@ public class BytecodeGenerator2 {
 
         insertLocalEnd(varIterator, sectionEnd);
         insertLocalEnd(varObject, sectionEnd);
+    }
+
+    private void addEmptyCollectionCondition(SectionToken token) throws CompilerException {
+        Label sectionEnd = new Label();
+
+        // collection.isEmpty()
+        mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Collection", "isEmpty", "()Z", true);
+
+        // if(...)
+        mv.visitJumpInsn(IFEQ, sectionEnd);
+
+        // TODO check null
+
+        add(token.content);
+
+        clearStack();
+
+        mv.visitLabel(sectionEnd);
     }
 
     /**
