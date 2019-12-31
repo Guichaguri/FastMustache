@@ -1,6 +1,6 @@
 package com.guichaguri.fastmustache.compiler.bytecode;
 
-import com.guichaguri.fastmustache.compiler.bytecode.data.DataManager;
+import com.guichaguri.fastmustache.compiler.bytecode.data.DataSource;
 import com.guichaguri.fastmustache.compiler.bytecode.data.MemberType;
 import com.guichaguri.fastmustache.compiler.parser.tokens.MustacheToken;
 import com.guichaguri.fastmustache.compiler.parser.tokens.SectionToken;
@@ -26,7 +26,7 @@ public class BytecodeGenerator2 {
 
     private final MustacheCompiler compiler;
     private final CompilerOptions options;
-    private final DataManager data;
+    private final DataSource data;
 
     private final Label start = new Label();
     private final Label end = new Label();
@@ -39,13 +39,18 @@ public class BytecodeGenerator2 {
     private List<LocalVariable> locals = new ArrayList<>();
     private Stack<LocalVariable> stack = new Stack<>();
 
-    public BytecodeGenerator2(MustacheCompiler compiler, CompilerOptions options, DataManager data) {
+    public BytecodeGenerator2(MustacheCompiler compiler, CompilerOptions options, DataSource data) {
         this.compiler = compiler;
         this.options = options;
         this.data = data;
     }
 
-    public void start(String methodName) {
+    /**
+     * Starts building the render method
+     * @param methodName The method name
+     * @param minimumLength The minimum capacity for the StringBuilder
+     */
+    public void start(String methodName, int minimumLength) {
         int access = ACC_PUBLIC;//parent == null ? ACC_PUBLIC : ACC_PRIVATE + ACC_STATIC + ACC_SYNTHETIC;
 
         mv = compiler.getClassWriter().visitMethod(access, methodName, Type.getMethodDescriptor(STRING, data.getDataType()), null, null);
@@ -55,7 +60,25 @@ public class BytecodeGenerator2 {
         mv.visitLabel(start);
         mv.visitTypeInsn(NEW, BUILDER.getInternalName());
         mv.visitInsn(DUP);
-        mv.visitMethodInsn(INVOKESPECIAL, BUILDER.getInternalName(), "<init>", "()V", false);
+
+        if (minimumLength > 16) {
+            // Initializes the builder with an initial capacity set
+            // Reduces the frequency in which the builder resizes itself, thus improving the performance
+
+            if(minimumLength < Byte.MAX_VALUE) {
+                // Loads a byte into the stack
+                mv.visitIntInsn(BIPUSH, minimumLength);
+            } else {
+                // Loads an int into the stack
+                mv.visitLdcInsn(minimumLength);
+            }
+
+            // StringBuilder(length)
+            mv.visitMethodInsn(INVOKESPECIAL, BUILDER.getInternalName(), "<init>", "(I)V", false);
+        } else {
+            // StringBuilder()
+            mv.visitMethodInsn(INVOKESPECIAL, BUILDER.getInternalName(), "<init>", "()V", false);
+        }
 
         thisVar = insertLocalStart(compiler.getClassType().getDescriptor(), true, start);
         dataVar = insertLocalStart(data.getDataType().getDescriptor(), true, start);
