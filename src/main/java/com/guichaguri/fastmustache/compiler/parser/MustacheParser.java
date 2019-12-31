@@ -1,10 +1,9 @@
 package com.guichaguri.fastmustache.compiler.parser;
 
-import com.guichaguri.fastmustache.template.CompilerOptions;
 import com.guichaguri.fastmustache.compiler.parser.tokens.*;
-
-import java.io.BufferedReader;
+import com.guichaguri.fastmustache.template.CompilerOptions;
 import java.io.IOException;
+import java.io.Reader;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -14,20 +13,20 @@ import java.util.List;
 public class MustacheParser {
 
     private final CompilerOptions options;
-    private final BufferedReader reader;
+    private final Reader reader;
 
     private String delimiterLeft;
     private String delimiterRight;
     private boolean defaultDelimiters;
 
     private String currentLine;
-    private int currentLineNumber = -1;
+    private int currentLineNumber = 0;
     private int currentPos;
 
     private SectionToken currentSection;
     private ArrayList<MustacheToken> tokens = new ArrayList<>();
 
-    public MustacheParser(CompilerOptions options, BufferedReader reader) {
+    public MustacheParser(CompilerOptions options, Reader reader) {
         this.options = options;
         this.reader = reader;
         this.delimiterLeft = this.options.getDelimiterLeft();
@@ -36,12 +35,37 @@ public class MustacheParser {
                 delimiterRight.equals(CompilerOptions.DEFAULT.getDelimiterRight());
     }
 
+    /**
+     * Reads the next string batch.
+     * May start and end with line breaks, but will never have line breaks in the middle.
+     * Matches both CR and LF as line breaks, it will keep the original line break characters in the string.
+     *
+     * @return Whether a new line was successfully read
+     * @throws IOException Thrown when an IO error occurs
+     */
     private boolean nextLine() throws IOException {
-        currentLine = reader.readLine();
+        StringBuilder builder = new StringBuilder();
+        boolean ignoreLineBreaks = true;
+        int c;
+
+        // Reads every character and appends it to the builder
+        // Doesn't stop for the first line break characters until it finds content
+        // Breaks when the content stops with a line break
+        while((c = reader.read()) != -1) {
+            builder.append((char) c);
+
+            if (c == '\n' || c == '\r') {
+                if (!ignoreLineBreaks) break;
+            } else {
+                ignoreLineBreaks = false;
+            }
+        }
+
+        currentLine = builder.toString();
         currentLineNumber++;
         currentPos = 0;
 
-        return currentLine != null && !currentLine.isEmpty();
+        return !currentLine.isEmpty();
     }
 
     public List<MustacheToken> parse() throws IOException, ParseException {
@@ -65,7 +89,7 @@ public class MustacheParser {
                 parseDelimiter(start);
             } else {
                 // No delimiter has been found, which means the rest of the line is raw text
-                text.append(currentLine.substring(currentPos));//.append('\n');
+                text.append(currentLine.substring(currentPos));
                 if(!nextLine()) break;
             }
         }

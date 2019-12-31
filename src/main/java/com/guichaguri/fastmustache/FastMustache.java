@@ -37,7 +37,7 @@ public class FastMustache implements Closeable {
      * @throws ParseException Thrown when the template couldn't be parsed
      * @throws CompilerException Thrown when the class couldn't be generated
      */
-    public static <T> Template<T> compile(BufferedReader template, Class<T> dataClass) throws IOException, CompilerException, ParseException {
+    public static <T> Template<T> compile(Reader template, Class<T> dataClass) throws IOException, CompilerException, ParseException {
         return new FastMustache(template).withAutoClassName(true).compile(dataClass);
     }
 
@@ -49,7 +49,7 @@ public class FastMustache implements Closeable {
      * @throws ParseException Thrown when the template couldn't be parsed
      * @throws CompilerException Thrown when the class couldn't be generated
      */
-    public static Template<TemplateData> compileSimple(BufferedReader template) throws IOException, CompilerException, ParseException {
+    public static Template<TemplateData> compileSimple(Reader template) throws IOException, CompilerException, ParseException {
         return new FastMustache(template).withAutoClassName(true).compileSimple();
     }
 
@@ -62,29 +62,23 @@ public class FastMustache implements Closeable {
      * @throws ParseException Thrown when the template couldn't be parsed
      * @throws CompilerException Thrown when the class couldn't be generated
      */
-    public static Template<TemplateData> compileTyped(BufferedReader template, Map<String, MustacheType> types) throws IOException, CompilerException, ParseException {
+    public static Template<TemplateData> compileTyped(Reader template, Map<String, MustacheType> types) throws IOException, CompilerException, ParseException {
         return new FastMustache(template).withAutoClassName(true).compileTyped(types);
     }
 
 
-    private final BufferedReader template;
+    private final Reader template;
     private CompilerOptions options = CompilerOptions.DEFAULT;
     private String templateName, className;
 
-    /**
-     * Initializes the builder
-     * @param template The template reader
-     */
-    public FastMustache(BufferedReader template) {
-        this.template = template;
-    }
+    private List<MustacheToken> tokens = null;
 
     /**
      * Initializes the builder
      * @param template The template reader
      */
     public FastMustache(Reader template) {
-        this.template = template instanceof BufferedReader ? (BufferedReader) template : new BufferedReader(template);
+        this.template = template;
     }
 
     /**
@@ -92,7 +86,7 @@ public class FastMustache implements Closeable {
      * @param template The template stream
      */
     public FastMustache(InputStream template) {
-        this.template = new BufferedReader(new InputStreamReader(template));
+        this.template = new InputStreamReader(template);
     }
 
     /**
@@ -100,7 +94,7 @@ public class FastMustache implements Closeable {
      * @param template The template file
      */
     public FastMustache(File template) throws FileNotFoundException {
-        this.template = new BufferedReader(new FileReader(template));
+        this.template = new FileReader(template);
         this.templateName = template.getName();
     }
 
@@ -109,7 +103,7 @@ public class FastMustache implements Closeable {
      * @param template The template string
      */
     public FastMustache(String template) {
-        this.template = new BufferedReader(new StringReader(template));
+        this.template = new StringReader(template);
     }
 
     /**
