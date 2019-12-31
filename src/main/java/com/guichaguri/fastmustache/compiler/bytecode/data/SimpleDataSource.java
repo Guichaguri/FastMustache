@@ -1,6 +1,6 @@
 package com.guichaguri.fastmustache.compiler.bytecode.data;
 
-import com.guichaguri.fastmustache.compiler.CompilerException;
+import com.guichaguri.fastmustache.compiler.bytecode.CompilerException;
 import com.guichaguri.fastmustache.compiler.bytecode.LocalVariable;
 import com.guichaguri.fastmustache.data.ScopedData;
 import com.guichaguri.fastmustache.template.MustacheType;
@@ -18,7 +18,7 @@ import static org.objectweb.asm.Opcodes.*;
  *
  * @author Guichaguri
  */
-public class SimpleDataManager implements DataManager {
+public class SimpleDataSource implements DataSource {
 
     public static final Type DATA = Type.getType(TemplateData.class);
     public static final Type DATA_ARRAY = Type.getType(TemplateData[].class);

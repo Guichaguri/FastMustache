@@ -1,6 +1,6 @@
 package com.guichaguri.fastmustache.compiler.bytecode.data;
 
-import com.guichaguri.fastmustache.compiler.CompilerException;
+import com.guichaguri.fastmustache.compiler.bytecode.CompilerException;
 import com.guichaguri.fastmustache.compiler.bytecode.LocalVariable;
 import com.guichaguri.fastmustache.template.MustacheType;
 import org.objectweb.asm.MethodVisitor;
@@ -11,7 +11,7 @@ import org.objectweb.asm.Type;
  *
  * @author Guichaguri
  */
-public interface DataManager {
+public interface DataSource {
 
     /**
      * The render method argument
