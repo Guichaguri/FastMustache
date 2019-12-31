@@ -1,6 +1,7 @@
 package com.guichaguri.fastmustache.compiler;
 
 import com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator;
+import com.guichaguri.fastmustache.compiler.bytecode.CompilerException;
 import com.guichaguri.fastmustache.compiler.bytecode.data.ClassDataManager;
 import com.guichaguri.fastmustache.compiler.bytecode.data.DataManager;
 import com.guichaguri.fastmustache.compiler.bytecode.data.SimpleDataManager;

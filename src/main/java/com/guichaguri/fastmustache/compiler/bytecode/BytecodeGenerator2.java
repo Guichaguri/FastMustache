@@ -7,7 +7,6 @@ import com.guichaguri.fastmustache.compiler.parser.tokens.SectionToken;
 import com.guichaguri.fastmustache.template.CompilerOptions;
 import com.guichaguri.fastmustache.template.Template;
 import com.guichaguri.fastmustache.template.TemplateUtils;
-import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
@@ -25,15 +24,13 @@ public class BytecodeGenerator2 {
     public static final Type STRING = Type.getType(String.class);
     public static final Type OBJECT = Type.getType(Object.class);
 
+    private final MustacheCompiler compiler;
     private final CompilerOptions options;
     private final DataManager data;
-    private final ClassWriter cw;
 
     private final Label start = new Label();
     private final Label end = new Label();
     private MethodVisitor mv;
-
-    private Type clazzType;
 
     private LocalVariable thisVar;
     private LocalVariable dataVar;
@@ -42,81 +39,16 @@ public class BytecodeGenerator2 {
     private List<LocalVariable> locals = new ArrayList<>();
     private Stack<LocalVariable> stack = new Stack<>();
 
-    public BytecodeGenerator2(String className, String templateName, CompilerOptions options, DataManager data) {
+    public BytecodeGenerator2(MustacheCompiler compiler, CompilerOptions options, DataManager data) {
+        this.compiler = compiler;
         this.options = options;
         this.data = data;
-        this.cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES | ClassWriter.COMPUTE_MAXS);
-
-        String internalName = className.replace('.', '/');
-        clazzType = Type.getObjectType(internalName);
-
-        String signature = OBJECT.getDescriptor() + "L" +
-                TEMPLATE.getInternalName() + "<" + data.getDataType().getDescriptor() + ">;";
-
-        cw.visit(52, ACC_PUBLIC + ACC_SUPER, internalName, signature,
-                OBJECT.getInternalName(),
-                new String[]{TEMPLATE.getInternalName()});
-
-        cw.visitSource(templateName, null);
-
-        insertConstructor();
-        insertObjectRender();
     }
 
-    /**
-     * Inserts the default constructor
-     */
-    public void insertConstructor() {
-        Label start = new Label();
-        Label end = new Label();
-
-        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC, "<init>", "()V", null, null);
-        mv.visitCode();
-        mv.visitLabel(start);
-
-        // super();
-        mv.visitVarInsn(ALOAD, 0);
-        mv.visitMethodInsn(INVOKESPECIAL, OBJECT.getInternalName(), "<init>", "()V", false);
-
-        mv.visitInsn(RETURN);
-
-        mv.visitLabel(end);
-        mv.visitLocalVariable("this", clazzType.getDescriptor(), null, start, end, 0);
-        mv.visitMaxs(1, 1);
-        mv.visitEnd();
-    }
-
-    /**
-     * Inserts the bridge render(Object) method
-     */
-    public void insertObjectRender() {
-        Label start = new Label();
-        Label end = new Label();
-        Type dataType = data.getDataType();
-
-        MethodVisitor mv = cw.visitMethod(ACC_PUBLIC + ACC_BRIDGE + ACC_SYNTHETIC, "render",
-                Type.getMethodDescriptor(STRING, OBJECT), null, null);
-        mv.visitCode();
-        mv.visitLabel(start);
-
-        // return render((T) obj)
-        mv.visitVarInsn(ALOAD, 0);
-        mv.visitVarInsn(ALOAD, 1);
-        mv.visitTypeInsn(CHECKCAST, dataType.getInternalName());
-        mv.visitMethodInsn(INVOKEVIRTUAL, clazzType.getInternalName(), "render", Type.getMethodDescriptor(STRING, dataType), false);
-        mv.visitInsn(ARETURN);
-
-        mv.visitLabel(end);
-        mv.visitLocalVariable("this", clazzType.getDescriptor(), null, start, end, 0);
-        mv.visitLocalVariable("obj", dataType.getDescriptor(), null, start, end, 1);
-        mv.visitMaxs(2, 2);
-        mv.visitEnd();
-    }
-
-    public void insertMethodStart(String methodName) {
+    public void start(String methodName) {
         int access = ACC_PUBLIC;//parent == null ? ACC_PUBLIC : ACC_PRIVATE + ACC_STATIC + ACC_SYNTHETIC;
 
-        mv = cw.visitMethod(access, methodName, Type.getMethodDescriptor(STRING, data.getDataType()), null, null);
+        mv = compiler.getClassWriter().visitMethod(access, methodName, Type.getMethodDescriptor(STRING, data.getDataType()), null, null);
         mv.visitCode();
 
         // new StringBuilder()
@@ -125,18 +57,14 @@ public class BytecodeGenerator2 {
         mv.visitInsn(DUP);
         mv.visitMethodInsn(INVOKESPECIAL, BUILDER.getInternalName(), "<init>", "()V", false);
 
-        thisVar = insertLocalStart(clazzType.getDescriptor(), true, start);
+        thisVar = insertLocalStart(compiler.getClassType().getDescriptor(), true, start);
         dataVar = insertLocalStart(data.getDataType().getDescriptor(), true, start);
         builderVar = insertLocalStart(BUILDER.getDescriptor(), false, start);
 
         stack.push(builderVar);
     }
 
-    public void insertMethodStart() {
-        insertMethodStart("render");
-    }
-
-    public void insertMethodEnd() {
+    public void end() {
         // Loads the builder into the stack
         loadVarStack(builderVar);
 
@@ -147,26 +75,16 @@ public class BytecodeGenerator2 {
 
         for(LocalVariable var : locals) {
             if (!var.declared) continue;
+
             mv.visitLocalVariable("var" + var.index, var.desc, null,
                     var.start, var.end == null ? end : var.end, var.index);
         }
-
-
-        /*if(parent == null && thisVar >= 0) {
-            mv.visitLocalVariable("this", classDesc, null, start, end, varThis);
-        }*/
-
-        //mv.visitLocalVariable("data", data.getDataType().getDescriptor(), null, start, end, dataVar.index);//TODO
-
-        /*if(needLocal) {
-            mv.visitLocalVariable("builder", BUILDER.getDescriptor(), null, start, end, builderVar);
-        }*/
 
         mv.visitMaxs(10, locals.size());//TODO
         mv.visitEnd();
     }
 
-    public LocalVariable insertLocalStart(String desc, boolean declared, Label start) {
+    private LocalVariable insertLocalStart(String desc, boolean declared, Label start) {
         // Tries to reuse a local variable that is not being used anymore
         // This optimizes the amount of pointers
         for (LocalVariable local : locals) {
@@ -184,7 +102,7 @@ public class BytecodeGenerator2 {
         return local;
     }
 
-    public void insertLocalEnd(LocalVariable local, Label end) {
+    private void insertLocalEnd(LocalVariable local, Label end) {
         local.end = end;
     }
 
@@ -600,13 +518,6 @@ public class BytecodeGenerator2 {
         // builder.append(...)
         mv.visitMethodInsn(INVOKEVIRTUAL, BUILDER.getInternalName(), "append",
                 Type.getMethodDescriptor(BUILDER, STRING), false);
-    }
-
-    /**
-     * Converts the generated class into a byte array
-     */
-    public byte[] toByteArray() {
-        return cw.toByteArray();
     }
 
 }

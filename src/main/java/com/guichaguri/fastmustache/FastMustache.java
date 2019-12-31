@@ -1,8 +1,8 @@
 package com.guichaguri.fastmustache;
 
 import com.guichaguri.fastmustache.compiler.TemplateClassLoader;
-import com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator2;
 import com.guichaguri.fastmustache.compiler.bytecode.CompilerException;
+import com.guichaguri.fastmustache.compiler.bytecode.MustacheCompiler;
 import com.guichaguri.fastmustache.compiler.bytecode.data.ClassDataManager;
 import com.guichaguri.fastmustache.compiler.bytecode.data.DataManager;
 import com.guichaguri.fastmustache.compiler.bytecode.data.SimpleDataManager;
@@ -176,7 +176,12 @@ public class FastMustache implements Closeable {
      * @throws IOException Thrown when an IO error occurs
      */
     public List<MustacheToken> parse() throws ParseException, IOException {
-        return new MustacheParser(options, template).parse();
+        if (tokens != null) return tokens;
+
+        tokens = new MustacheParser(options, template).parse();
+        template.close();
+
+        return tokens;
     }
 
     /**
@@ -196,11 +201,11 @@ public class FastMustache implements Closeable {
             templateName = "";
         }
 
-        BytecodeGenerator2 generator = new BytecodeGenerator2(className, templateName, options, dataManager);
-        generator.insertMethodStart();
-        generator.add(parse());
-        generator.insertMethodEnd();
-        return generator.toByteArray();
+        MustacheCompiler compiler = new MustacheCompiler(className, templateName, dataManager.getDataType());
+        compiler.insertConstructor();
+        compiler.insertObjectRender();
+        compiler.insertRender(options, dataManager, parse());
+        return compiler.toByteArray();
     }
 
     /**
