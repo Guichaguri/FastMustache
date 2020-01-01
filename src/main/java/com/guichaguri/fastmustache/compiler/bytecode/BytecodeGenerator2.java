@@ -275,12 +275,19 @@ public class BytecodeGenerator2 {
 
         // Stores it into a variable
         mv.visitVarInsn(ASTORE, objectVar.index);
-        mv.visitVarInsn(ALOAD, objectVar.index);
 
-        // if(... == null) or if(... != null)
-        mv.visitJumpInsn(IFNULL, ifEnd);
 
-        // Loads the variable into the data manager, so it can use its properties
+        if (!member.clazz.isPrimitive()) {
+            // If it's an object, we can null check it
+
+            // Loads the object back into the stack
+            mv.visitVarInsn(ALOAD, objectVar.index);
+
+            // if(... != null)
+            mv.visitJumpInsn(IFNULL, ifEnd);
+        }
+
+        // Loads the variable into the data source, so it can use its properties
         data.loadDataItem(mv, objectVar, member.clazz);
 
         // Inserts all tokens inside the condition
