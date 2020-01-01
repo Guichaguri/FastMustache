@@ -4,9 +4,7 @@ import com.guichaguri.fastmustache.compiler.bytecode.data.DataSource;
 import com.guichaguri.fastmustache.compiler.bytecode.data.MemberType;
 import com.guichaguri.fastmustache.compiler.parser.tokens.MustacheToken;
 import com.guichaguri.fastmustache.compiler.parser.tokens.SectionToken;
-import com.guichaguri.fastmustache.template.CompilerOptions;
-import com.guichaguri.fastmustache.template.Template;
-import com.guichaguri.fastmustache.template.TemplateUtils;
+import com.guichaguri.fastmustache.template.*;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
@@ -19,6 +17,9 @@ import static org.objectweb.asm.Opcodes.*;
 public class BytecodeGenerator2 {
 
     public static final Type TEMPLATE = Type.getType(Template.class);
+    public static final Type SIMPLE_TEMPLATE = Type.getType(SimpleTemplate.class);
+    public static final Type MUSTACHE_TYPE = Type.getType(MustacheType.class);
+    public static final Type SECTION = Type.getType(Section.class);
     public static final Type UTILS = Type.getType(TemplateUtils.class);
     public static final Type BUILDER = Type.getType(StringBuilder.class);
     public static final Type STRING = Type.getType(String.class);
@@ -175,7 +176,7 @@ public class BytecodeGenerator2 {
 
         if(str.length() == 1) {
             // Uses append(char)
-            int c = (int)str.charAt(0);
+            int c = str.charAt(0);
 
             if(c < Byte.MAX_VALUE) {
                 // Loads a byte into the stack
@@ -243,6 +244,64 @@ public class BytecodeGenerator2 {
     }
 
     /**
+     * Adds a not null condition that also adds the data into the scope
+     */
+    public void addDataCondition(SectionToken token) throws CompilerException {
+        addDataCondition(token, null);
+    }
+
+    /**
+     * Adds a not null condition that also adds the data into the scope
+     */
+    private void addDataCondition(SectionToken token, Label ifStart) throws CompilerException {
+        if (token.inverted) {
+            addObjectCondition(token);
+            return;
+        }
+
+        Label ifEnd = new Label();
+
+        // Clears the whole stack
+        clearStack();
+
+        if (ifStart == null) {
+            ifStart = new Label();
+            mv.visitLabel(ifStart);
+        }
+
+        // Loads the object into the stack
+        MemberType member = data.insertDataGetter(mv, dataVar, token.variable);
+        LocalVariable objectVar = insertLocalStart(member.clazzType.getDescriptor(), true, ifStart);
+
+        // Stores it into a variable
+        mv.visitVarInsn(ASTORE, objectVar.index);
+        mv.visitVarInsn(ALOAD, objectVar.index);
+
+        // if(... == null) or if(... != null)
+        mv.visitJumpInsn(IFNULL, ifEnd);
+
+        // Loads the variable into the data manager, so it can use its properties
+        data.loadDataItem(mv, objectVar, member.clazz);
+
+        // Inserts all tokens inside the condition
+        add(token.content);
+
+        // Unloads the variable
+        data.unloadDataItem(mv, objectVar);
+
+        // Clears again the whole stack
+        clearStack();
+
+        mv.visitLabel(ifEnd);
+
+        // COMPUTE_FRAMES is enabled, so we'll leave the frame construction to the ASM lib
+        //mv.visitFrame(F_APPEND, 1, new Object[]{BUILDER.getInternalName()}, 0, null);
+
+        // Free the object local
+        insertLocalEnd(objectVar, ifEnd);
+    }
+
+    /**
      * Adds a not null condition
      */
     public void addObjectCondition(SectionToken token) throws CompilerException {
@@ -279,6 +338,13 @@ public class BytecodeGenerator2 {
 
         mv.visitLabel(sectionStart);
 
+        addLoop(token, sectionStart);
+    }
+
+    /**
+     * Adds a loop
+     */
+    private void addLoop(SectionToken token, Label sectionStart) throws CompilerException {
         // Gets the array
         MemberType member = data.insertArrayGetter(mv, dataVar, token.variable);
 
@@ -520,6 +586,58 @@ public class BytecodeGenerator2 {
     }
 
     /**
+     * Adds an unknown section
+     */
+    public void addUnknownSection(SectionToken token) throws CompilerException {
+        Label switchEnd = new Label();
+        Label switchDefault = new Label();
+        Label booleanSection = new Label();
+        Label arraySection = new Label();
+        Label dataSection = new Label();
+        Label lambdaSection = new Label();
+
+        clearStack();
+
+        // Adds the type ordinal to the stack
+        data.insertTypeGetter(mv, dataVar, token.variable);
+
+        mv.visitLookupSwitchInsn(switchDefault,
+                new int[]{MustacheType.BOOLEAN.ordinal(), MustacheType.ARRAY.ordinal(), MustacheType.DATA.ordinal(), MustacheType.LAMBDA.ordinal()},
+                new Label[]{booleanSection, arraySection, dataSection, lambdaSection});
+
+        // case BOOLEAN
+        mv.visitLabel(booleanSection);
+        addCondition(token);
+        clearStack(); // Make sure the stack is empty
+        mv.visitJumpInsn(GOTO, switchEnd);
+
+        // case ARRAY
+        mv.visitLabel(arraySection);
+        addLoop(token, arraySection);
+        clearStack(); // Make sure the stack is empty
+        mv.visitJumpInsn(GOTO, switchEnd);
+
+        // case DATA
+        mv.visitLabel(dataSection);
+        addDataCondition(token, dataSection);
+        clearStack(); // Make sure the stack is empty
+        mv.visitJumpInsn(GOTO, switchEnd);
+
+        // case LAMBDA
+        mv.visitLabel(lambdaSection);
+        // TODO
+        clearStack(); // Make sure the stack is empty
+        mv.visitJumpInsn(GOTO, switchEnd);
+
+        // default
+        mv.visitLabel(switchDefault);
+        addObjectCondition(token);
+        clearStack(); // Make sure the stack is empty
+
+        mv.visitLabel(switchEnd);
+    }
+
+    /**
      * Adds a lambda
      */
     public void addLambda(SectionToken token) {
@@ -530,6 +648,7 @@ public class BytecodeGenerator2 {
      * Adds a partial
      */
     public void addPartial(String partial) throws CompilerException {
+        // Loads the builder into the stack
         loadVarStack(builderVar);
 
         data.insertPartialGetter(mv, dataVar, partial);

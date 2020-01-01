@@ -34,9 +34,17 @@ public interface DataSource {
      * @param mv The visitor
      * @param var The data variable
      * @param key The key
+     */
+    void insertObjectGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException;
+
+    /**
+     * Loads into the stack a data object
+     * @param mv The visitor
+     * @param var The data variable
+     * @param key The key
      * @return The object type that has been loaded
      */
-    MemberType insertObjectGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException;
+    MemberType insertDataGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException;
 
     /**
      * Loads into the stack a string
@@ -54,6 +62,14 @@ public interface DataSource {
      * @param key The key
      */
     void insertBooleanGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException;
+
+    /**
+     * Loads into the stack an integer from {@link MustacheType#ordinal()}
+     * @param mv The visitor
+     * @param var The data variable
+     * @param key The key
+     */
+    void insertTypeGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException;
 
     /**
      * Loads into the stack a collection or an array

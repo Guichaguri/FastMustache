@@ -52,14 +52,19 @@ public class ClassDataSource implements DataSource {
     }
 
     @Override
-    public MemberType insertObjectGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException {
+    public void insertObjectGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException {
         MemberType type = insertGetter(mv, var, key, true);
 
         if(type.clazz.isPrimitive()) {
             throw new CompilerException(key + " does not allow primitive types (" + type + ")");
         }
+    }
 
-        return type;
+    @Override
+    public MemberType insertDataGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException {
+        // Inserts a generic getter.
+        // It doesn't matter whether the type is an object or primitive, it can be used in both ways.
+        return insertGetter(mv, var, key, true);
     }
 
     @Override
@@ -103,6 +108,19 @@ public class ClassDataSource implements DataSource {
                 mv.visitMethodInsn(INVOKEVIRTUAL, OBJECT.getInternalName(), "toString", Type.getMethodDescriptor(STRING), false);
             }
             mv.visitMethodInsn(INVOKESTATIC, "java/lang/Boolean", "parseBoolean", Type.getMethodDescriptor(STRING, Type.BOOLEAN_TYPE), false);
+        }
+    }
+
+    @Override
+    public void insertTypeGetter(MethodVisitor mv, LocalVariable var, String key) {
+        int type = getType(key).ordinal();
+
+        if (type < Byte.MAX_VALUE) {
+            // Loads a byte into the stack
+            mv.visitIntInsn(BIPUSH, type);
+        } else {
+            // Loads an int into the stack
+            mv.visitLdcInsn(type);
         }
     }
 
