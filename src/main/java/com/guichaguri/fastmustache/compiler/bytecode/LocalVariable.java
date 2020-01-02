@@ -22,14 +22,17 @@ public class LocalVariable {
     public void load(MethodVisitor mv) {
         int opcode;
 
-        if (desc.equals("I")) {
-            opcode = ILOAD;
+        if (desc.equals("I") || desc.equals("S") || desc.equals("B") || desc.equals("C") || desc.equals("Z")) {
+            // short, byte, char and boolean values are all treated as ints in the bytecode
+            opcode = ILOAD; // int
         } else if (desc.equals("F")) {
-            opcode = FLOAD;
+            opcode = FLOAD; // float
         } else if (desc.equals("D")) {
-            opcode = DLOAD;
+            opcode = DLOAD; // double
+        } else if (desc.equals("J")) {
+            opcode = LLOAD; // long
         } else {
-            opcode = ALOAD;
+            opcode = ALOAD; // reference
         }
 
         mv.visitVarInsn(opcode, index);
@@ -38,21 +41,24 @@ public class LocalVariable {
     public void store(MethodVisitor mv) {
         int opcode;
 
-        if (desc.equals("I")) {
-            opcode = ISTORE;
+        if (desc.equals("I") || desc.equals("S") || desc.equals("B") || desc.equals("C") || desc.equals("Z")) {
+            // short, byte, char and boolean values are all treated as ints in the bytecode
+            opcode = ISTORE; // int
         } else if (desc.equals("F")) {
-            opcode = FSTORE;
+            opcode = FSTORE; // float
         } else if (desc.equals("D")) {
-            opcode = DSTORE;
+            opcode = DSTORE; // double
+        } else if (desc.equals("J")) {
+            opcode = LSTORE; // long
         } else {
-            opcode = ASTORE;
+            opcode = ASTORE; // reference
         }
 
         mv.visitVarInsn(opcode, index);
     }
 
     public void pop(MethodVisitor mv) {
-        // doubles and longs have need POP2 as they are based on 64 bits instead of 32 bits
+        // double and long values require POP2 to pop two values from the stack as they are based on 64 bits instead of 32 bits
         mv.visitInsn(desc.equals("D") || desc.equals("J") ? POP2 : POP);
     }
 
