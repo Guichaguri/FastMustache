@@ -9,13 +9,15 @@ public class LocalVariable {
 
     public final int index;
     public final String desc;
+    public final Class<?> descClass; // Can be null
     public Label start;
     public Label end;
     public boolean declared;
 
-    public LocalVariable(int index, String desc, boolean declared) {
+    public LocalVariable(int index, String desc, Class<?> descClass, boolean declared) {
         this.index = index;
         this.desc = desc;
+        this.descClass = descClass;
         this.declared = declared;
     }
 

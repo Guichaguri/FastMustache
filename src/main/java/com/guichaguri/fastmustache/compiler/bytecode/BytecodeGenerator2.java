@@ -1,6 +1,7 @@
 package com.guichaguri.fastmustache.compiler.bytecode;
 
 import com.guichaguri.fastmustache.compiler.bytecode.data.DataSource;
+import com.guichaguri.fastmustache.compiler.bytecode.data.DataSourceContext;
 import com.guichaguri.fastmustache.compiler.bytecode.data.MemberType;
 import com.guichaguri.fastmustache.compiler.parser.tokens.MustacheToken;
 import com.guichaguri.fastmustache.compiler.parser.tokens.SectionToken;
@@ -9,6 +10,7 @@ import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Stack;
 
@@ -28,6 +30,7 @@ public class BytecodeGenerator2 {
     private final MustacheCompiler compiler;
     private final CompilerOptions options;
     private final DataSource data;
+    private DataSourceContext context;
 
     private final Label start = new Label();
     private final Label end = new Label();
@@ -40,6 +43,9 @@ public class BytecodeGenerator2 {
     private List<LocalVariable> locals = new ArrayList<>();
     private Stack<LocalVariable> stack = new Stack<>();
 
+    private String name;
+    private int lambdaCount = 0;
+
     public BytecodeGenerator2(MustacheCompiler compiler, CompilerOptions options, DataSource data) {
         this.compiler = compiler;
         this.options = options;
@@ -48,13 +54,13 @@ public class BytecodeGenerator2 {
 
     /**
      * Starts building the render method
-     * @param methodName The method name
      * @param minimumLength The minimum capacity for the StringBuilder
      */
-    public void start(String methodName, int minimumLength) {
-        int access = ACC_PUBLIC;//parent == null ? ACC_PUBLIC : ACC_PRIVATE + ACC_STATIC + ACC_SYNTHETIC;
+    public void start(int minimumLength) {
+        Type dataType = data.getDataType();
+        Class<?> dataClass = data.getDataClass();
 
-        mv = compiler.getClassWriter().visitMethod(access, methodName, Type.getMethodDescriptor(STRING, data.getDataType()), null, null);
+        mv = compiler.getClassWriter().visitMethod(ACC_PUBLIC, "render", Type.getMethodDescriptor(STRING, dataType), null, null);
         mv.visitCode();
 
         // new StringBuilder()
@@ -81,9 +87,12 @@ public class BytecodeGenerator2 {
             mv.visitMethodInsn(INVOKESPECIAL, BUILDER.getInternalName(), "<init>", "()V", false);
         }
 
-        thisVar = insertLocalStart(compiler.getClassType().getDescriptor(), true, start);
-        dataVar = insertLocalStart(data.getDataType().getDescriptor(), true, start);
-        builderVar = insertLocalStart(BUILDER.getDescriptor(), false, start);
+        thisVar = insertLocalStart(compiler.getClassType().getDescriptor(), null, true, start);
+        dataVar = insertLocalStart(dataType.getDescriptor(), dataClass, true, start);
+        builderVar = insertLocalStart(BUILDER.getDescriptor(), StringBuilder.class, false, start);
+
+        name = "render";
+        context = data.createContext(this, mv, dataVar);
 
         stack.push(builderVar);
     }
@@ -108,19 +117,18 @@ public class BytecodeGenerator2 {
         mv.visitEnd();
     }
 
-    private LocalVariable insertLocalStart(String desc, boolean declared, Label start) {
+    private LocalVariable insertLocalStart(String desc, Class<?> clazz, boolean declared, Label start) {
         // Tries to reuse a local variable that is not being used anymore
         // This optimizes the amount of pointers
         for (LocalVariable local : locals) {
             if (local.desc.equals(desc) && local.end != null && local.declared == declared) {
-                local.start = start;
                 local.end = null;
                 return local;
             }
         }
 
         // Creates a new local variable
-        LocalVariable local = new LocalVariable(locals.size(), desc, declared);
+        LocalVariable local = new LocalVariable(locals.size(), desc, clazz, declared);
         local.start = start;
         locals.add(local);
         return local;
@@ -208,7 +216,7 @@ public class BytecodeGenerator2 {
         loadVarStack(builderVar);
 
         // Loads a string into the stack
-        data.insertStringGetter(mv, dataVar, variable, escaped);
+        data.insertStringGetter(context, variable, escaped);
 
         // builder.append(...)
         mv.visitMethodInsn(INVOKEVIRTUAL, BUILDER.getInternalName(), "append", Type.getMethodDescriptor(BUILDER, STRING), false);
@@ -226,7 +234,7 @@ public class BytecodeGenerator2 {
         clearStack();
 
         // Loads a boolean into the stack
-        data.insertBooleanGetter(mv, dataVar, token.variable);
+        data.insertBooleanGetter(context, token.variable);
 
         // if(...) or if(!...)
         mv.visitJumpInsn(token.inverted ? IFNE : IFEQ, ifEnd);
@@ -270,12 +278,11 @@ public class BytecodeGenerator2 {
         }
 
         // Loads the object into the stack
-        MemberType member = data.insertDataGetter(mv, dataVar, token.variable);
-        LocalVariable objectVar = insertLocalStart(member.clazzType.getDescriptor(), true, ifStart);
+        MemberType member = data.insertDataGetter(context, token.variable);
+        LocalVariable objectVar = insertLocalStart(member.clazzType.getDescriptor(), member.clazz, true, ifStart);
 
         // Stores it into a variable
         mv.visitVarInsn(ASTORE, objectVar.index);
-
 
         if (!member.clazz.isPrimitive()) {
             // If it's an object, we can null check it
@@ -288,13 +295,13 @@ public class BytecodeGenerator2 {
         }
 
         // Loads the variable into the data source, so it can use its properties
-        data.loadDataItem(mv, objectVar, member.clazz);
+        data.loadDataItem(context, objectVar);
 
         // Inserts all tokens inside the condition
         add(token.content);
 
         // Unloads the variable
-        data.unloadDataItem(mv, objectVar);
+        data.unloadDataItem(context, objectVar);
 
         // Clears again the whole stack
         clearStack();
@@ -318,7 +325,7 @@ public class BytecodeGenerator2 {
         clearStack();
 
         // Loads the object into the stack
-        data.insertObjectGetter(mv, dataVar, token.variable);
+        data.insertObjectGetter(context, token.variable);
 
         // if(... == null) or if(... != null)
         mv.visitJumpInsn(token.inverted ? IFNONNULL : IFNULL, ifEnd);
@@ -353,7 +360,7 @@ public class BytecodeGenerator2 {
      */
     private void addLoop(SectionToken token, Label sectionStart) throws CompilerException {
         // Gets the array
-        MemberType member = data.insertArrayGetter(mv, dataVar, token.variable);
+        MemberType member = data.insertArrayGetter(context, token.variable);
 
         if (member.clazz.isArray()) {
             if (token.inverted) {
@@ -379,10 +386,10 @@ public class BytecodeGenerator2 {
         Label loopEnd = new Label();
 
         // Allocate variables
-        LocalVariable varArray = insertLocalStart(member.clazzType.getDescriptor(), false, sectionStart);
-        LocalVariable varLength = insertLocalStart("I", false, sectionStart);
-        LocalVariable varIndex = insertLocalStart("I", false, sectionStart);
-        LocalVariable varObject = insertLocalStart(Type.getDescriptor(member.component), true, sectionStart);
+        LocalVariable varArray = insertLocalStart(member.clazzType.getDescriptor(), member.clazz, false, sectionStart);
+        LocalVariable varLength = insertLocalStart("I", int.class, false, sectionStart);
+        LocalVariable varIndex = insertLocalStart("I", int.class, false, sectionStart);
+        LocalVariable varObject = insertLocalStart(Type.getDescriptor(member.component), member.component, true, sectionStart);
 
         // Store the array in a local variable
         mv.visitVarInsn(ASTORE, varArray.index);
@@ -420,13 +427,13 @@ public class BytecodeGenerator2 {
         mv.visitVarInsn(ASTORE, varObject.index);
 
         // Loads the variable into the data manager, so it can use its properties
-        data.loadDataItem(mv, varObject, member.component);
+        data.loadDataItem(context, varObject);
 
         // Inserts all tokens inside the loop
         add(token.content);
 
         // Unloads the variable
-        data.unloadDataItem(mv, varObject);
+        data.unloadDataItem(context, varObject);
 
         clearStack();
 
@@ -454,7 +461,7 @@ public class BytecodeGenerator2 {
             Label contentStart = new Label();
 
             // As we'll need to use the array twice, we'll store it in a variable
-            varArray = insertLocalStart(member.clazzType.getDescriptor(), false, sectionStart);
+            varArray = insertLocalStart(member.clazzType.getDescriptor(), member.clazz, false, sectionStart);
             mv.visitVarInsn(ASTORE, varArray.index);
 
             // if(array == null)
@@ -493,12 +500,12 @@ public class BytecodeGenerator2 {
 
         // Allocate variables
         LocalVariable varCollection = null;
-        LocalVariable varIterator = insertLocalStart("Ljava/util/Iterator;", false, sectionStart);
-        LocalVariable varObject = insertLocalStart(OBJECT.getDescriptor(), false, sectionStart);
+        LocalVariable varIterator = insertLocalStart("Ljava/util/Iterator;", Iterator.class, false, sectionStart);
+        LocalVariable varObject = insertLocalStart(OBJECT.getDescriptor(), Object.class, false, sectionStart);
 
         if (options.isArrayNullChecksEnabled()) {
             // As we'll have to use the collection twice, we'll store it in a variable
-            varCollection = insertLocalStart(member.clazzType.getDescriptor(), false, sectionStart);
+            varCollection = insertLocalStart(member.clazzType.getDescriptor(), member.clazz, false, sectionStart);
             mv.visitVarInsn(ASTORE, varCollection.index);
 
             // if(collection == null)
@@ -530,13 +537,13 @@ public class BytecodeGenerator2 {
         mv.visitVarInsn(ASTORE, varObject.index);
 
         // Loads the variable into the data manager, so it can use its properties
-        data.loadDataItem(mv, varObject, member.component);
+        data.loadDataItem(context, varObject);
 
         // Inserts all tokens inside the loop
         add(token.content);
 
         // Unloads the variable
-        data.unloadDataItem(mv, varObject);
+        data.unloadDataItem(context, varObject);
 
         clearStack();
 
@@ -562,7 +569,7 @@ public class BytecodeGenerator2 {
             Label contentStart = new Label();
 
             // As we'll have to use the collection twice, we'll store it in a variable
-            varCollection = insertLocalStart(member.clazzType.getDescriptor(), false, sectionStart);
+            varCollection = insertLocalStart(member.clazzType.getDescriptor(), member.clazz, false, sectionStart);
             mv.visitVarInsn(ASTORE, varCollection.index);
 
             // if(collection == null)
@@ -594,6 +601,9 @@ public class BytecodeGenerator2 {
 
     /**
      * Adds an unknown section
+     *
+     * Checks the type in runtime and does the proper processing based on it.
+     * Adds a lot more bytecode and should be avoid whenever possible.
      */
     public void addUnknownSection(SectionToken token) throws CompilerException {
         Label switchEnd = new Label();
@@ -606,8 +616,9 @@ public class BytecodeGenerator2 {
         clearStack();
 
         // Adds the type ordinal to the stack
-        data.insertTypeGetter(mv, dataVar, token.variable);
+        data.insertTypeGetter(context, token.variable);
 
+        // switch(...)
         mv.visitLookupSwitchInsn(switchDefault,
                 new int[]{MustacheType.BOOLEAN.ordinal(), MustacheType.ARRAY.ordinal(), MustacheType.DATA.ordinal(), MustacheType.LAMBDA.ordinal()},
                 new Label[]{booleanSection, arraySection, dataSection, lambdaSection});
@@ -658,7 +669,7 @@ public class BytecodeGenerator2 {
         // Loads the builder into the stack
         loadVarStack(builderVar);
 
-        data.insertPartialGetter(mv, dataVar, partial);
+        data.insertPartialGetter(context, partial);
 
         // partial.render(data)
         mv.visitMethodInsn(INVOKEINTERFACE, TEMPLATE.getInternalName(), "render",

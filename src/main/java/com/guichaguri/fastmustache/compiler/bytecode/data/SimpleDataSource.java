@@ -1,5 +1,6 @@
 package com.guichaguri.fastmustache.compiler.bytecode.data;
 
+import com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator2;
 import com.guichaguri.fastmustache.compiler.bytecode.CompilerException;
 import com.guichaguri.fastmustache.compiler.bytecode.LocalVariable;
 import com.guichaguri.fastmustache.data.ScopedData;
@@ -7,7 +8,6 @@ import com.guichaguri.fastmustache.template.MustacheType;
 import com.guichaguri.fastmustache.template.TemplateData;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
-import java.util.LinkedList;
 
 import static com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator2.*;
 import static org.objectweb.asm.Opcodes.*;
@@ -25,7 +25,6 @@ public class SimpleDataSource implements DataSource {
 
     private final MemberType ARRAY_TYPE = new MemberType(TemplateData[].class, TemplateData.class, DATA_ARRAY);
     private final MemberType DATA_TYPE = new MemberType(TemplateData.class, DATA);
-    private final LinkedList<LocalVariable> vars = new LinkedList<>();
 
     @Override
     public Type getDataType() {
@@ -33,13 +32,21 @@ public class SimpleDataSource implements DataSource {
     }
 
     @Override
-    public MustacheType getType(String key) {
+    public Class<?> getDataClass() {
+        return TemplateData.class;
+    }
+
+    @Override
+    public MustacheType getType(DataSourceContext context, String key) {
         return MustacheType.UNKNOWN;
     }
 
     @Override
-    public void insertObjectGetter(MethodVisitor mv, LocalVariable var, String key) {
-        loadVar(mv, var);
+    public void insertObjectGetter(DataSourceContext context, String key) {
+        MethodVisitor mv = context.mv;
+
+        // Loads the last data variable into the stack
+        context.vars.getLast().load(mv);
 
         // data.get(key)
         mv.visitLdcInsn(key);
@@ -48,8 +55,11 @@ public class SimpleDataSource implements DataSource {
     }
 
     @Override
-    public MemberType insertDataGetter(MethodVisitor mv, LocalVariable var, String key) {
-        loadVar(mv, var);
+    public MemberType insertDataGetter(DataSourceContext context, String key) {
+        MethodVisitor mv = context.mv;
+
+        // Loads the last data variable
+        context.vars.getLast().load(mv);
 
         // data.getData(key)
         mv.visitLdcInsn(key);
@@ -60,8 +70,11 @@ public class SimpleDataSource implements DataSource {
     }
 
     @Override
-    public void insertStringGetter(MethodVisitor mv, LocalVariable var, String key, boolean escaped) {
-        loadVar(mv, var);
+    public void insertStringGetter(DataSourceContext context, String key, boolean escaped) {
+        MethodVisitor mv = context.mv;
+
+        // Loads the last data variable into the stack
+        context.vars.getLast().load(mv);
 
         // data.getEscaped(key) or data.getUnescaped(key)
         mv.visitLdcInsn(key);
@@ -70,8 +83,11 @@ public class SimpleDataSource implements DataSource {
     }
 
     @Override
-    public void insertBooleanGetter(MethodVisitor mv, LocalVariable var, String key) {
-        loadVar(mv, var);
+    public void insertBooleanGetter(DataSourceContext context, String key) {
+        MethodVisitor mv = context.mv;
+
+        // Loads the last data variable into the stack
+        context.vars.getLast().load(mv);
 
         // data.getBoolean(key)
         mv.visitLdcInsn(key);
@@ -80,8 +96,11 @@ public class SimpleDataSource implements DataSource {
     }
 
     @Override
-    public void insertTypeGetter(MethodVisitor mv, LocalVariable var, String key) {
-        loadVar(mv, var);
+    public void insertTypeGetter(DataSourceContext context, String key) {
+        MethodVisitor mv = context.mv;
+
+        // Loads the last data variable into the stack
+        context.vars.getLast().load(mv);
 
         // data.getType(key).ordinal()
         mv.visitLdcInsn(key);
@@ -92,8 +111,11 @@ public class SimpleDataSource implements DataSource {
     }
 
     @Override
-    public MemberType insertArrayGetter(MethodVisitor mv, LocalVariable var, String key) {
-        loadVar(mv, var);
+    public MemberType insertArrayGetter(DataSourceContext context, String key) {
+        MethodVisitor mv = context.mv;
+
+        // Loads the last data variable into the stack
+        context.vars.getLast().load(mv);
 
         // data.getArray(key)
         mv.visitLdcInsn(key);
@@ -104,9 +126,12 @@ public class SimpleDataSource implements DataSource {
     }
 
     @Override
-    public MemberType insertPartialGetter(MethodVisitor mv, LocalVariable var, String key) {
-        // Loads the partial into the stack
-        loadVar(mv, var);
+    public void insertPartialGetter(DataSourceContext context, String key) {
+        MethodVisitor mv = context.mv;
+        LocalVariable var = context.vars.getLast();
+
+        // Loads the last data variable into the stack
+        var.load(mv);
 
         // data.getPartial(key)
         mv.visitLdcInsn(key);
@@ -114,42 +139,35 @@ public class SimpleDataSource implements DataSource {
                 Type.getMethodDescriptor(SIMPLE_TEMPLATE, STRING), true);
 
         // Loads the data into the stack
-        loadVar(mv, var);
-
-        return DATA_TYPE;
+        var.load(mv);
     }
 
     @Override
-    public void loadDataItem(MethodVisitor mv, LocalVariable var, Class<?> type) throws CompilerException {
-        if(type != TemplateData.class) {
+    public void loadDataItem(DataSourceContext context, LocalVariable var) throws CompilerException {
+        if(var.descClass != TemplateData.class) {
             throw new CompilerException("Can't parse a data item that is not a template data");
         }
 
-        if(!vars.isEmpty()) {
-            // TODO
+        if(!context.vars.isEmpty()) {
+            MethodVisitor mv = context.mv;
+            LocalVariable topVar = context.vars.getLast();
+
             // d = new ScopedData(data, d);
             mv.visitTypeInsn(NEW, SCOPED_DATA.getInternalName());
             mv.visitInsn(DUP);
-            vars.getLast().load(mv);
+            topVar.load(mv);
             var.load(mv);
             mv.visitMethodInsn(INVOKESPECIAL, SCOPED_DATA.getInternalName(), "<init>",
                     Type.getMethodDescriptor(Type.VOID_TYPE, DATA, DATA), false);
             var.store(mv);
         }
 
-        vars.add(var);
+        context.vars.add(var);
     }
 
     @Override
-    public void unloadDataItem(MethodVisitor mv, LocalVariable var) {
-        vars.remove(var);
+    public void unloadDataItem(DataSourceContext context, LocalVariable var) {
+        context.vars.remove(var);
     }
 
-    private void loadVar(MethodVisitor mv, LocalVariable var) {
-        if(!vars.isEmpty()) {
-            var = vars.getLast();
-        }
-
-        var.load(mv);
-    }
 }

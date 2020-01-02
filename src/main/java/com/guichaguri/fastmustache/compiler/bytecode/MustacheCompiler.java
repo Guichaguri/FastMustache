@@ -106,7 +106,7 @@ public class MustacheCompiler {
      */
     public void insertRender(CompilerOptions options, DataSource data, List<MustacheToken> tokens) throws CompilerException {
         BytecodeGenerator2 generator = new BytecodeGenerator2(this, options, data);
-        generator.start("render", TextToken.getMinimumLength(tokens));
+        generator.start(TextToken.getMinimumLength(tokens));
         generator.add(tokens);
         generator.end();
     }

@@ -1,5 +1,6 @@
 package com.guichaguri.fastmustache.compiler.bytecode.data;
 
+import com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator2;
 import com.guichaguri.fastmustache.compiler.bytecode.CompilerException;
 import com.guichaguri.fastmustache.compiler.bytecode.LocalVariable;
 import com.guichaguri.fastmustache.template.MustacheType;
@@ -28,9 +29,6 @@ public class ClassDataSource implements DataSource {
     private final Class<?> clazz;
     private final Type clazzType;
 
-    private LinkedList<LocalVariable> vars = new LinkedList<>();
-    private LinkedList<Class<?>> classes = new LinkedList<>();
-
     public ClassDataSource(Class<?> clazz) {
         this.clazz = clazz;
         this.clazzType = Type.getType(clazz);
@@ -42,9 +40,16 @@ public class ClassDataSource implements DataSource {
     }
 
     @Override
-    public MustacheType getType(String key) {
-        for(int i = classes.size() - 1; i >= 0; i--) {
-            MustacheType type = getType(classes.get(i), key);
+    public Class<?> getDataClass() {
+        return clazz;
+    }
+
+    @Override
+    public MustacheType getType(DataSourceContext context, String key) {
+        LinkedList<LocalVariable> vars = context.vars;
+
+        for(int i = vars.size() - 1; i >= 0; i--) {
+            MustacheType type = getType(vars.get(i).descClass, key);
             if(type != MustacheType.UNKNOWN) return type;
         }
 
@@ -52,8 +57,8 @@ public class ClassDataSource implements DataSource {
     }
 
     @Override
-    public void insertObjectGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException {
-        MemberType type = insertGetter(mv, var, key, true);
+    public void insertObjectGetter(DataSourceContext context, String key) throws CompilerException {
+        MemberType type = insertGetter(context, key, true);
 
         if(type.clazz.isPrimitive()) {
             throw new CompilerException(key + " does not allow primitive types (" + type + ")");
@@ -61,15 +66,16 @@ public class ClassDataSource implements DataSource {
     }
 
     @Override
-    public MemberType insertDataGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException {
+    public MemberType insertDataGetter(DataSourceContext context, String key) throws CompilerException {
         // Inserts a generic getter.
         // It doesn't matter whether the type is an object or primitive, it can be used in both ways.
-        return insertGetter(mv, var, key, true);
+        return insertGetter(context, key, true);
     }
 
     @Override
-    public void insertStringGetter(MethodVisitor mv, LocalVariable var, String key, boolean escaped) throws CompilerException {
-        Class<?> type = insertGetter(mv, var, key, true).clazz;
+    public void insertStringGetter(DataSourceContext context, String key, boolean escaped) throws CompilerException {
+        Class<?> type = insertGetter(context, key, true).clazz;
+        MethodVisitor mv = context.mv;
 
         // String.valueOf(...)
         if(type.isPrimitive()) {
@@ -88,8 +94,9 @@ public class ClassDataSource implements DataSource {
     }
 
     @Override
-    public void insertBooleanGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException {
-        Class<?> type = insertGetter(mv, var, key, true).clazz;
+    public void insertBooleanGetter(DataSourceContext context, String key) throws CompilerException {
+        Class<?> type = insertGetter(context, key, true).clazz;
+        MethodVisitor mv = context.mv;
 
         if(type == boolean.class) {
             // The correct type. We don't need to adapt it :D
@@ -112,21 +119,21 @@ public class ClassDataSource implements DataSource {
     }
 
     @Override
-    public void insertTypeGetter(MethodVisitor mv, LocalVariable var, String key) {
-        int type = getType(key).ordinal();
+    public void insertTypeGetter(DataSourceContext context, String key) {
+        int type = getType(context, key).ordinal();
 
         if (type < Byte.MAX_VALUE) {
             // Loads a byte into the stack
-            mv.visitIntInsn(BIPUSH, type);
+            context.mv.visitIntInsn(BIPUSH, type);
         } else {
             // Loads an int into the stack
-            mv.visitLdcInsn(type);
+            context.mv.visitLdcInsn(type);
         }
     }
 
     @Override
-    public MemberType insertArrayGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException {
-        MemberType type = insertGetter(mv, var, key, false);
+    public MemberType insertArrayGetter(DataSourceContext context, String key) throws CompilerException {
+        MemberType type = insertGetter(context, key, false);
 
         if(!type.clazz.isArray() && !Collection.class.isAssignableFrom(type.clazz)) {
             throw new CompilerException("Can't convert " + type + " into an array or collection. (" + key + ")");
@@ -136,8 +143,8 @@ public class ClassDataSource implements DataSource {
     }
 
     @Override
-    public MemberType insertPartialGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException {
-        MemberType type = insertGetter(mv, var, key, false);
+    public void insertPartialGetter(DataSourceContext context, String key) throws CompilerException {
+        MemberType type = insertGetter(context, key, false);
         Class<?> dataClass;
 
         if(type.clazz == Template.class) {
@@ -148,35 +155,26 @@ public class ClassDataSource implements DataSource {
             throw new CompilerException("Can't convert " + type + " into a template. (" + key + ")");
         }
 
-        type = new MemberType(dataClass, Type.getType(dataClass));
+        LinkedList<LocalVariable> vars = context.vars;
 
-        for(int i = classes.size() - 1; i >= 0; i--) {
-            if (dataClass.isAssignableFrom(classes.get(i))) {
-                vars.get(i).load(mv);
-                return type;
+        for(int i = vars.size() - 1; i >= 0; i--) {
+            LocalVariable var = vars.get(i);
+            if (dataClass.isAssignableFrom(var.descClass)) {
+                var.load(context.mv);
             }
-        }
-
-        if (dataClass.isAssignableFrom(clazz)) {
-            var.load(mv);
-            return type;
         }
 
         throw new CompilerException("No variable found that matches " + dataClass + ". (" + key + ")");
     }
 
     @Override
-    public void loadDataItem(MethodVisitor mv, LocalVariable var, Class<?> type) {
-        vars.add(var);
-        classes.add(type);
+    public void loadDataItem(DataSourceContext context, LocalVariable var) {
+        context.vars.add(var);
     }
 
     @Override
-    public void unloadDataItem(MethodVisitor mv, LocalVariable var) {
-        int index = vars.indexOf(var);
-
-        vars.remove(index);
-        classes.remove(index);
+    public void unloadDataItem(DataSourceContext context, LocalVariable var) {
+        context.vars.remove(var);
     }
 
     private MustacheType getType(Class<?> clazz, String key) {
@@ -225,20 +223,18 @@ public class ClassDataSource implements DataSource {
 
     /**
      * Searches and inserts a getter, loading the key into the stack
-     * @param mv The method visitor
-     * @param var The data local variable
+     * @param context The context
      * @param key The key
      * @param basicType Whether the type returned will not contain the component
      * @return The type added to the stack
      */
-    private MemberType insertGetter(MethodVisitor mv, LocalVariable var, String key, boolean basicType) throws CompilerException {
+    private MemberType insertGetter(DataSourceContext context, String key, boolean basicType) throws CompilerException {
+        LinkedList<LocalVariable> vars = context.vars;
+
         for(int i = vars.size() - 1; i >= 0; i--) {
-            MemberType type = insertGetter(mv, classes.get(i), vars.get(i), key, basicType);
+            MemberType type = insertGetter(context.mv, vars.get(i), key, basicType);
             if(type != null) return type;
         }
-
-        MemberType type = insertGetter(mv, clazz, var, key, basicType);
-        if(type != null) return type;
 
         throw new CompilerException("Couldn't find any field or method related to " + key);
     }
@@ -246,13 +242,14 @@ public class ClassDataSource implements DataSource {
     /**
      * Tries to inserts a getter, loading the key into the stack
      * @param mv The method visitor
-     * @param clazz The data class
      * @param var The data local variable
      * @param key The key
      * @param basicType Whether the type returned will not contain the component
      * @return The type added to the stack or {@code null} if nothing was added
      */
-    private MemberType insertGetter(MethodVisitor mv, Class<?> clazz, LocalVariable var, String key, boolean basicType) {
+    private MemberType insertGetter(MethodVisitor mv, LocalVariable var, String key, boolean basicType) {
+        Class<?> clazz = var.descClass;
+
         if (key.equals(".")) {
             // Implicit iterator - We'll return the variable itself instead of looking for a property
             var.load(mv);
@@ -379,4 +376,5 @@ public class ClassDataSource implements DataSource {
 
         return null;
     }
+
 }

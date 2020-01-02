@@ -1,5 +1,6 @@
 package com.guichaguri.fastmustache.compiler.bytecode.data;
 
+import com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator2;
 import com.guichaguri.fastmustache.compiler.bytecode.CompilerException;
 import com.guichaguri.fastmustache.compiler.bytecode.LocalVariable;
 import com.guichaguri.fastmustache.template.MustacheType;
@@ -20,86 +21,97 @@ public interface DataSource {
     Type getDataType();
 
     /**
+     * The render method argument
+     * @return The class
+     */
+    Class<?> getDataClass();
+
+    /**
+     * Creates a context for the generator
+     * @param generator The generator
+     * @param mv The method visitor
+     * @param data The data local variable
+     * @return The context that will be reused in other methods
+     */
+    default DataSourceContext createContext(BytecodeGenerator2 generator, MethodVisitor mv, LocalVariable data) {
+        return new DataSourceContext(generator, mv, data);
+    }
+
+    /**
      * Gets the type from a key or a type that the key can be converted to.
      *
      * It should return {@link MustacheType#UNKNOWN} if it's not possible.
      *
+     * @param context The context
      * @param key The key
      * @return The type
      */
-    MustacheType getType(String key);
+    MustacheType getType(DataSourceContext context, String key);
 
     /**
-     * Loads into the stack an object
-     * @param mv The visitor
-     * @param var The data variable
+     * Loads into the stack an {@link Object}
+     * @param context The context
      * @param key The key
      */
-    void insertObjectGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException;
+    void insertObjectGetter(DataSourceContext context, String key) throws CompilerException;
 
     /**
      * Loads into the stack a data object
-     * @param mv The visitor
-     * @param var The data variable
+     * @param context The context
      * @param key The key
      * @return The object type that has been loaded
      */
-    MemberType insertDataGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException;
+    MemberType insertDataGetter(DataSourceContext context, String key) throws CompilerException;
 
     /**
      * Loads into the stack a string
-     * @param mv The visitor
-     * @param var The data variable
+     * @param context The context
      * @param key The key
      * @param escaped Whether the string must be escaped first
      */
-    void insertStringGetter(MethodVisitor mv, LocalVariable var, String key, boolean escaped) throws CompilerException;
+    void insertStringGetter(DataSourceContext context, String key, boolean escaped) throws CompilerException;
 
     /**
      * Loads into the stack a primitive boolean
-     * @param mv The visitor
-     * @param var The data variable
+     * @param context The context
      * @param key The key
      */
-    void insertBooleanGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException;
+    void insertBooleanGetter(DataSourceContext context, String key) throws CompilerException;
 
     /**
      * Loads into the stack an integer from {@link MustacheType#ordinal()}
-     * @param mv The visitor
-     * @param var The data variable
+     * @param context The context
      * @param key The key
      */
-    void insertTypeGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException;
+    void insertTypeGetter(DataSourceContext context, String key) throws CompilerException;
 
     /**
      * Loads into the stack a collection or an array
-     * @param mv The visitor
-     * @param var The data variable
+     * @param context The context
      * @param key The key
      * @return The array type
      */
-    MemberType insertArrayGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException;
+    MemberType insertArrayGetter(DataSourceContext context, String key) throws CompilerException;
 
     /**
      * Loads into the stack a {@link com.guichaguri.fastmustache.template.Template} and the data parameter
-     * @param mv The visitor
-     * @param var The data variable
+     * @param context The context
      * @param key The key
-     * @return The data parameter type
      */
-    MemberType insertPartialGetter(MethodVisitor mv, LocalVariable var, String key) throws CompilerException;
+    void insertPartialGetter(DataSourceContext context, String key) throws CompilerException;
 
     /**
      * Prepares a data item when it is loaded
+     * @param context The context
      * @param var The data item local variable
-     * @param type The data item type
      */
-    void loadDataItem(MethodVisitor mv, LocalVariable var, Class<?> type) throws CompilerException;
+    void loadDataItem(DataSourceContext context, LocalVariable var) throws CompilerException;
 
     /**
-     * Cleans up any preparation done in {@link #loadDataItem(MethodVisitor, LocalVariable, Class)}
+     * Cleans up any preparation done in {@link #loadDataItem(DataSourceContext, LocalVariable)}
+     * @param context The context
      * @param var The data item local variable
      */
-    void unloadDataItem(MethodVisitor mv, LocalVariable var);
+    void unloadDataItem(DataSourceContext context, LocalVariable var);
 
 }
