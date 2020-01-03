@@ -6,6 +6,7 @@ import com.guichaguri.fastmustache.compiler.bytecode.LocalVariable;
 import com.guichaguri.fastmustache.template.MustacheType;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
+import java.util.List;
 
 /**
  * Generates the bytecode that gets data from a key
@@ -94,6 +95,14 @@ public interface DataSource {
     MemberType insertArrayGetter(DataSourceContext context, String key) throws CompilerException;
 
     /**
+     * Loads into the stack a {@link com.guichaguri.fastmustache.template.MustacheLambda}
+     * @param context The context
+     * @param key The key
+     * @return The lambda data type
+     */
+    MemberType insertLambdaGetter(DataSourceContext context, String key) throws CompilerException;
+
+    /**
      * Loads into the stack a {@link com.guichaguri.fastmustache.template.Template} and the data parameter
      * @param context The context
      * @param key The key
@@ -113,5 +122,12 @@ public interface DataSource {
      * @param var The data item local variable
      */
     void unloadDataItem(DataSourceContext context, LocalVariable var);
+
+    /**
+     * Gets the variables in context that should be used at this point
+     * @param context The context
+     * @return The variables available to use
+     */
+    List<LocalVariable> getDataContext(DataSourceContext context);
 
 }

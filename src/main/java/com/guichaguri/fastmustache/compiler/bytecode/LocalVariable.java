@@ -7,12 +7,13 @@ import static org.objectweb.asm.Opcodes.*;
 
 public class LocalVariable {
 
-    public final int index;
+    public int index;
     public final String desc;
     public final Class<?> descClass; // Can be null
     public Label start;
     public Label end;
     public boolean declared;
+    public int usages = 0; // Number of times that this variable was loaded or stored
 
     public LocalVariable(int index, String desc, Class<?> descClass, boolean declared) {
         this.index = index;
@@ -38,6 +39,7 @@ public class LocalVariable {
         }
 
         mv.visitVarInsn(opcode, index);
+        usages++;
     }
 
     public void store(MethodVisitor mv) {
@@ -57,6 +59,7 @@ public class LocalVariable {
         }
 
         mv.visitVarInsn(opcode, index);
+        usages++;
     }
 
     public void pop(MethodVisitor mv) {

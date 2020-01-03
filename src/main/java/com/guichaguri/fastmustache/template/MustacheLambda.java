@@ -4,8 +4,8 @@ package com.guichaguri.fastmustache.template;
  * @author Guichaguri
  */
 @FunctionalInterface
-public interface MustacheLambda {
+public interface MustacheLambda<T> {
 
-    void render(StringBuilder builder, SimpleTemplate template, TemplateData data);
+    void render(StringBuilder builder, Section<T> template, T data);
 
 }

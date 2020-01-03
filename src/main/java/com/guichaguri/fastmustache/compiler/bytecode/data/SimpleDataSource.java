@@ -9,6 +9,9 @@ import com.guichaguri.fastmustache.template.TemplateData;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 
+import java.util.Collections;
+import java.util.List;
+
 import static com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator2.*;
 import static org.objectweb.asm.Opcodes.*;
 
@@ -23,7 +26,7 @@ public class SimpleDataSource implements DataSource {
     public static final Type DATA_ARRAY = Type.getType(TemplateData[].class);
     public static final Type SCOPED_DATA = Type.getType(ScopedData.class);
 
-    private final MemberType ARRAY_TYPE = new MemberType(TemplateData[].class, TemplateData.class, DATA_ARRAY);
+    private final MemberType ARRAY_TYPE = new MemberType(TemplateData[].class, DATA_ARRAY);
     private final MemberType DATA_TYPE = new MemberType(TemplateData.class, DATA);
 
     @Override
@@ -126,6 +129,21 @@ public class SimpleDataSource implements DataSource {
     }
 
     @Override
+    public MemberType insertLambdaGetter(DataSourceContext context, String key) {
+        MethodVisitor mv = context.mv;
+
+        // Loads the last data variable into the stack
+        context.vars.getLast().load(mv);
+
+        // data.getLambda(key)
+        mv.visitLdcInsn(key);
+        mv.visitMethodInsn(INVOKEINTERFACE, DATA.getInternalName(), "getLambda",
+                Type.getMethodDescriptor(LAMBDA, STRING), true);
+
+        return DATA_TYPE;
+    }
+
+    @Override
     public void insertPartialGetter(DataSourceContext context, String key) {
         MethodVisitor mv = context.mv;
         LocalVariable var = context.vars.getLast();
@@ -168,6 +186,12 @@ public class SimpleDataSource implements DataSource {
     @Override
     public void unloadDataItem(DataSourceContext context, LocalVariable var) {
         context.vars.remove(var);
+    }
+
+    @Override
+    public List<LocalVariable> getDataContext(DataSourceContext context) {
+        if (context.vars.isEmpty()) return Collections.emptyList();
+        return Collections.singletonList(context.vars.getLast());
     }
 
 }

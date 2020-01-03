@@ -3,15 +3,13 @@ package com.guichaguri.fastmustache.compiler.bytecode.data;
 import com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator2;
 import com.guichaguri.fastmustache.compiler.bytecode.CompilerException;
 import com.guichaguri.fastmustache.compiler.bytecode.LocalVariable;
-import com.guichaguri.fastmustache.template.MustacheType;
+import com.guichaguri.fastmustache.template.*;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.util.Collection;
 import java.util.LinkedList;
-import com.guichaguri.fastmustache.template.SimpleTemplate;
-import com.guichaguri.fastmustache.template.Template;
-import com.guichaguri.fastmustache.template.TemplateData;
+import java.util.List;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 
@@ -143,24 +141,34 @@ public class ClassDataSource implements DataSource {
     }
 
     @Override
+    public MemberType insertLambdaGetter(DataSourceContext context, String key) throws CompilerException {
+        MemberType type = insertGetter(context, key, false);
+
+        if(!MustacheLambda.class.isAssignableFrom(type.clazz)) {
+            throw new CompilerException("Can't convert " + type + " into a mustache lambda. (" + key + ")");
+        }
+
+        Class<?> dataObject = type.getComponent(MustacheLambda.class);
+
+        return new MemberType(dataObject, Type.getType(dataObject));
+    }
+
+    @Override
     public void insertPartialGetter(DataSourceContext context, String key) throws CompilerException {
         MemberType type = insertGetter(context, key, false);
-        Class<?> dataClass;
 
-        if(type.clazz == Template.class) {
-            dataClass = type.component;
-        } else if(type.clazz == SimpleTemplate.class) {
-            dataClass = TemplateData.class;
-        } else {
+        if(!Template.class.isAssignableFrom(type.clazz)) {
             throw new CompilerException("Can't convert " + type + " into a template. (" + key + ")");
         }
 
+        Class<?> dataClass = type.getComponent(Template.class);
         LinkedList<LocalVariable> vars = context.vars;
 
         for(int i = vars.size() - 1; i >= 0; i--) {
             LocalVariable var = vars.get(i);
             if (dataClass.isAssignableFrom(var.descClass)) {
                 var.load(context.mv);
+                return;
             }
         }
 
@@ -175,6 +183,11 @@ public class ClassDataSource implements DataSource {
     @Override
     public void unloadDataItem(DataSourceContext context, LocalVariable var) {
         context.vars.remove(var);
+    }
+
+    @Override
+    public List<LocalVariable> getDataContext(DataSourceContext context) {
+        return context.vars;
     }
 
     private MustacheType getType(Class<?> clazz, String key) {
@@ -207,7 +220,7 @@ public class ClassDataSource implements DataSource {
 
         if(Boolean.class.isAssignableFrom(c)) {
             return MustacheType.BOOLEAN;
-        } else if(MustacheType.class.isAssignableFrom(c)) { // TODO?
+        } else if(MustacheLambda.class.isAssignableFrom(c)) {
             return MustacheType.LAMBDA;
         } else if(String.class.isAssignableFrom(c) || Number.class.isAssignableFrom(c)) {
             return MustacheType.STRING;

@@ -1,9 +1,10 @@
 package com.guichaguri.fastmustache.compiler.bytecode.data;
 
+import com.guichaguri.fastmustache.compiler.util.generics.GenericResolver;
+import org.objectweb.asm.Type;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
-import org.objectweb.asm.Type;
 
 /**
  * Represents a field/method type
@@ -11,38 +12,41 @@ import org.objectweb.asm.Type;
  */
 public class MemberType {
 
-    public final Class<?> clazz, component;
+    public final Class<?> clazz;
     public final Type clazzType;
+    public final java.lang.reflect.Type genericType;
 
     public MemberType(Class<?> clazz, Type clazzType) {
-        this(clazz, null, clazzType);
-    }
-
-    public MemberType(Class<?> clazz, Class<?> component, Type clazzType) {
         this.clazz = clazz;
-        this.component = component;
         this.clazzType = clazzType;
+        this.genericType = null;
     }
 
     public MemberType(Field field, Type clazzType) {
         this.clazz = field.getType();
         this.clazzType = clazzType;
-
-        if(clazz.isArray()) {
-            component = clazz.getComponentType();
-        } else {
-            component = (Class<?>)((ParameterizedType)field.getGenericType()).getActualTypeArguments()[0];
-        }
+        this.genericType = field.getGenericType();
     }
 
     public MemberType(Method method, Type clazzType) {
         this.clazz = method.getReturnType();
         this.clazzType = clazzType;
+        this.genericType = method.getGenericReturnType();
+    }
 
+    public Class<?> getComponent(Class<?> baseType) {
         if(clazz.isArray()) {
-            component = clazz.getComponentType();
+            return clazz.getComponentType();
         } else {
-            component = (Class<?>)((ParameterizedType)method.getGenericReturnType()).getActualTypeArguments()[0];
+            return GenericResolver.resolve(genericType, baseType).getActualClassArguments()[0];
+        }
+    }
+
+    public Class<?> getComponent() {
+        if(clazz.isArray()) {
+            return clazz.getComponentType();
+        } else {
+            return (Class<?>)((ParameterizedType)genericType).getActualTypeArguments()[0];
         }
     }
 

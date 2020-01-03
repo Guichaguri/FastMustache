@@ -6,13 +6,11 @@ import com.guichaguri.fastmustache.compiler.bytecode.data.MemberType;
 import com.guichaguri.fastmustache.compiler.parser.tokens.MustacheToken;
 import com.guichaguri.fastmustache.compiler.parser.tokens.SectionToken;
 import com.guichaguri.fastmustache.template.*;
+import org.objectweb.asm.Handle;
 import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Stack;
+import java.util.*;
 
 import static org.objectweb.asm.Opcodes.*;
 
@@ -21,30 +19,31 @@ public class BytecodeGenerator2 {
     public static final Type TEMPLATE = Type.getType(Template.class);
     public static final Type SIMPLE_TEMPLATE = Type.getType(SimpleTemplate.class);
     public static final Type MUSTACHE_TYPE = Type.getType(MustacheType.class);
+    public static final Type LAMBDA = Type.getType(MustacheLambda.class);
     public static final Type SECTION = Type.getType(Section.class);
     public static final Type UTILS = Type.getType(TemplateUtils.class);
     public static final Type BUILDER = Type.getType(StringBuilder.class);
     public static final Type STRING = Type.getType(String.class);
     public static final Type OBJECT = Type.getType(Object.class);
 
-    private final MustacheCompiler compiler;
-    private final CompilerOptions options;
-    private final DataSource data;
-    private DataSourceContext context;
+    protected final MustacheCompiler compiler;
+    protected final CompilerOptions options;
+    protected final DataSource data;
+    protected DataSourceContext context;
 
-    private final Label start = new Label();
-    private final Label end = new Label();
-    private MethodVisitor mv;
+    protected final Label start = new Label();
+    protected final Label end = new Label();
+    protected MethodVisitor mv;
 
-    private LocalVariable thisVar;
-    private LocalVariable dataVar;
-    private LocalVariable builderVar;
+    protected LocalVariable thisVar;
+    protected LocalVariable dataVar;
+    protected LocalVariable builderVar;
 
-    private List<LocalVariable> locals = new ArrayList<>();
-    private Stack<LocalVariable> stack = new Stack<>();
+    protected List<LocalVariable> locals = new ArrayList<>();
+    protected Stack<LocalVariable> stack = new Stack<>();
 
-    private String name;
-    private int lambdaCount = 0;
+    protected String name;
+    protected int lambdaCount = 0;
 
     public BytecodeGenerator2(MustacheCompiler compiler, CompilerOptions options, DataSource data) {
         this.compiler = compiler;
@@ -117,7 +116,7 @@ public class BytecodeGenerator2 {
         mv.visitEnd();
     }
 
-    private LocalVariable insertLocalStart(String desc, Class<?> clazz, boolean declared, Label start) {
+    protected LocalVariable insertLocalStart(String desc, Class<?> clazz, boolean declared, Label start) {
         // Tries to reuse a local variable that is not being used anymore
         // This optimizes the amount of pointers
         for (LocalVariable local : locals) {
@@ -134,11 +133,11 @@ public class BytecodeGenerator2 {
         return local;
     }
 
-    private void insertLocalEnd(LocalVariable local, Label end) {
+    protected void insertLocalEnd(LocalVariable local, Label end) {
         local.end = end;
     }
 
-    private void loadVarStack(LocalVariable var) {
+    protected void loadVarStack(LocalVariable var) {
         // Check if the variable is already loaded into the top of the stack
         if (!stack.empty() && stack.peek() == var) return;
 
@@ -146,7 +145,7 @@ public class BytecodeGenerator2 {
         stack.push(var);
     }
 
-    private void popVarStack() {
+    protected void popVarStack() {
         LocalVariable var = stack.pop();
 
         if (!builderVar.declared && var == builderVar) {
@@ -158,7 +157,7 @@ public class BytecodeGenerator2 {
         var.pop(mv);
     }
 
-    private void clearStack() {
+    protected void clearStack() {
         while(!stack.empty()) {
             popVarStack();
         }
@@ -222,6 +221,27 @@ public class BytecodeGenerator2 {
         mv.visitMethodInsn(INVOKEVIRTUAL, BUILDER.getInternalName(), "append", Type.getMethodDescriptor(BUILDER, STRING), false);
 
         // As it returns itself, the builder remains in the stack
+    }
+
+    /**
+     * Adds a section
+     */
+    public void addSection(SectionToken token) throws CompilerException {
+        MustacheType type = data.getType(context, token.variable);
+
+        if (type == MustacheType.BOOLEAN) {
+            addCondition(token);
+        } else if (type == MustacheType.ARRAY) {
+            addLoop(token);
+        } else if (type == MustacheType.LAMBDA) {
+            addLambda(token);
+        } else if (type == MustacheType.DATA) {
+            addDataCondition(token);
+        } else if (type == MustacheType.UNKNOWN) {
+            addUnknownSection(token);
+        } else {
+            addObjectCondition(token);
+        }
     }
 
     /**
@@ -385,11 +405,13 @@ public class BytecodeGenerator2 {
         Label loopStart = new Label();
         Label loopEnd = new Label();
 
+        Class<?> component = member.getComponent();
+
         // Allocate variables
         LocalVariable varArray = insertLocalStart(member.clazzType.getDescriptor(), member.clazz, false, sectionStart);
         LocalVariable varLength = insertLocalStart("I", int.class, false, sectionStart);
         LocalVariable varIndex = insertLocalStart("I", int.class, false, sectionStart);
-        LocalVariable varObject = insertLocalStart(Type.getDescriptor(member.component), member.component, true, sectionStart);
+        LocalVariable varObject = insertLocalStart(Type.getDescriptor(component), component, true, sectionStart);
 
         // Store the array in a local variable
         mv.visitVarInsn(ASTORE, varArray.index);
@@ -498,6 +520,8 @@ public class BytecodeGenerator2 {
         Label loopStart = new Label();
         Label loopEnd = new Label();
 
+        Class<?> component = member.getComponent(Collection.class);
+
         // Allocate variables
         LocalVariable varCollection = null;
         LocalVariable varIterator = insertLocalStart("Ljava/util/Iterator;", Iterator.class, false, sectionStart);
@@ -533,11 +557,11 @@ public class BytecodeGenerator2 {
         // obj = (T)iterator.next()
         mv.visitVarInsn(ALOAD, varIterator.index);
         mv.visitMethodInsn(INVOKEINTERFACE, "java/util/Iterator", "next", "()Ljava/lang/Object;", true);
-        mv.visitTypeInsn(CHECKCAST, Type.getInternalName(member.component));
+        mv.visitTypeInsn(CHECKCAST, Type.getInternalName(component));
         mv.visitVarInsn(ASTORE, varObject.index);
 
         // Loads the variable into the data manager, so it can use its properties
-        data.loadDataItem(context, varObject);
+        data.loadDataItem(context, varObject);// TODO correct type
 
         // Inserts all tokens inside the loop
         add(token.content);
@@ -600,6 +624,53 @@ public class BytecodeGenerator2 {
     }
 
     /**
+     * Adds a runtime lambda
+     *
+     * Wraps the section into a Java 8 lambda method that can be rendered as needed
+     */
+    public void addLambda(SectionToken token) throws CompilerException {
+        if (token.inverted) {
+            addObjectCondition(token);
+            return;
+        }
+
+        lambdaCount++;
+
+        clearStack();
+
+        // Loads the lambda into the stack
+        MemberType lambdaType = data.insertLambdaGetter(context, token.variable);
+
+        // Loads the builder into the stack
+        builderVar.load(mv);
+
+        String methodName = "lambda$" + name + "$" + lambdaCount;
+        LambdaGenerator lambda = new LambdaGenerator(compiler, options, data);
+        lambda.startLambda(this, lambdaType, methodName);
+        lambda.add(token.content);
+        lambda.endLambda();
+
+        // Loads all additional arguments into the stack
+        for(LambdaGenerator.LambdaArgument arg : lambda.additionalArguments) {
+            arg.original.load(mv);
+        }
+
+        // Crafts the section object using Java 8 lambdas
+        Handle h1 = new Handle(H_INVOKESTATIC, "java/lang/invoke/LambdaMetafactory", "metafactory", "(Ljava/lang/invoke/MethodHandles$Lookup;Ljava/lang/String;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodType;Ljava/lang/invoke/MethodHandle;Ljava/lang/invoke/MethodType;)Ljava/lang/invoke/CallSite;", false);
+        Handle h2 = new Handle(H_INVOKESTATIC, compiler.getClassType().getInternalName(), methodName, lambda.getMethodDescriptor(), false);
+
+        mv.visitInvokeDynamicInsn("render", Type.getMethodDescriptor(SECTION, lambda.getAdditionalTypes()), h1,
+                Type.getMethodType(Type.VOID_TYPE, BUILDER, OBJECT), h2,
+                Type.getMethodType(Type.VOID_TYPE, BUILDER, lambdaType.clazzType));
+
+        // Loads the data object into the stack
+        lambda.dataArg.original.load(mv);
+
+        // lambda.render(builder, section, data)
+        mv.visitMethodInsn(INVOKEINTERFACE, LAMBDA.getInternalName(), "render", Type.getMethodDescriptor(Type.VOID_TYPE, BUILDER, SECTION, OBJECT), true);
+    }
+
+    /**
      * Adds an unknown section
      *
      * Checks the type in runtime and does the proper processing based on it.
@@ -643,7 +714,7 @@ public class BytecodeGenerator2 {
 
         // case LAMBDA
         mv.visitLabel(lambdaSection);
-        // TODO
+        addLambda(token);
         clearStack(); // Make sure the stack is empty
         mv.visitJumpInsn(GOTO, switchEnd);
 
@@ -653,13 +724,6 @@ public class BytecodeGenerator2 {
         clearStack(); // Make sure the stack is empty
 
         mv.visitLabel(switchEnd);
-    }
-
-    /**
-     * Adds a lambda
-     */
-    public void addLambda(SectionToken token) {
-        // TODO
     }
 
     /**
