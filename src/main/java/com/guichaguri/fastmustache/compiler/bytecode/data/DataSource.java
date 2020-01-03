@@ -1,6 +1,6 @@
 package com.guichaguri.fastmustache.compiler.bytecode.data;
 
-import com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator2;
+import com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator;
 import com.guichaguri.fastmustache.compiler.bytecode.CompilerException;
 import com.guichaguri.fastmustache.compiler.bytecode.LocalVariable;
 import com.guichaguri.fastmustache.template.MustacheType;
@@ -34,7 +34,7 @@ public interface DataSource {
      * @param data The data local variable
      * @return The context that will be reused in other methods
      */
-    default DataSourceContext createContext(BytecodeGenerator2 generator, MethodVisitor mv, LocalVariable data) {
+    default DataSourceContext createContext(BytecodeGenerator generator, MethodVisitor mv, LocalVariable data) {
         return new DataSourceContext(generator, mv, data);
     }
 

@@ -11,7 +11,7 @@ import java.util.List;
 
 import static org.objectweb.asm.Opcodes.*;
 
-public class LambdaGenerator extends BytecodeGenerator2 {
+public class LambdaGenerator extends BytecodeGenerator {
 
     protected MethodNode methodNode;
 
@@ -25,7 +25,7 @@ public class LambdaGenerator extends BytecodeGenerator2 {
         super(compiler, options, data);
     }
 
-    public void startLambda(BytecodeGenerator2 generator, MemberType lambdaType, String methodName) throws CompilerException {
+    public void startLambda(BytecodeGenerator generator, MemberType lambdaType, String methodName) throws CompilerException {
         mv = methodNode = new MethodNode(ACC_PRIVATE + ACC_STATIC + ACC_SYNTHETIC, methodName, null, null, null);
 
         mv.visitCode();
@@ -119,7 +119,7 @@ public class LambdaGenerator extends BytecodeGenerator2 {
     /**
      * Adds all data variables as arguments, including the {@link StringBuilder}
      */
-    private void insertArguments(BytecodeGenerator2 generator, MemberType lambdaType, List<LocalVariable> originalVars) throws CompilerException {
+    private void insertArguments(BytecodeGenerator generator, MemberType lambdaType, List<LocalVariable> originalVars) throws CompilerException {
         LocalVariable originalDataVar = CompilerUtils.findLocalVariable(originalVars, lambdaType);
 
         if (originalDataVar == null) {

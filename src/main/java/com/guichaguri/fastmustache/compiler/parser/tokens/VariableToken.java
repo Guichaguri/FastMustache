@@ -1,8 +1,8 @@
 package com.guichaguri.fastmustache.compiler.parser.tokens;
 
 import com.guichaguri.fastmustache.compiler.bytecode.CompilerException;
-import com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator2;
-import com.guichaguri.fastmustache.compiler.bytecode.data.DataManager;
+import com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator;
+import com.guichaguri.fastmustache.compiler.bytecode.data.DataSource;
 
 /**
  * Represents a variable
@@ -13,7 +13,7 @@ public class VariableToken extends MustacheToken {
     public boolean escaped;
 
     @Override
-    public void add(BytecodeGenerator2 generator, DataManager data) throws CompilerException {
+    public void add(BytecodeGenerator generator) throws CompilerException {
         generator.addVariable(variable, escaped);
     }
 

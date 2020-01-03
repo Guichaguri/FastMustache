@@ -3,10 +3,10 @@ package com.guichaguri.fastmustache;
 import com.guichaguri.fastmustache.compiler.TemplateClassLoader;
 import com.guichaguri.fastmustache.compiler.bytecode.CompilerException;
 import com.guichaguri.fastmustache.compiler.bytecode.MustacheCompiler;
-import com.guichaguri.fastmustache.compiler.bytecode.data.ClassDataManager;
-import com.guichaguri.fastmustache.compiler.bytecode.data.DataManager;
-import com.guichaguri.fastmustache.compiler.bytecode.data.SimpleDataManager;
-import com.guichaguri.fastmustache.compiler.bytecode.data.TypedDataManager;
+import com.guichaguri.fastmustache.compiler.bytecode.data.ClassDataSource;
+import com.guichaguri.fastmustache.compiler.bytecode.data.DataSource;
+import com.guichaguri.fastmustache.compiler.bytecode.data.SimpleDataSource;
+import com.guichaguri.fastmustache.compiler.bytecode.data.TypedDataSource;
 import com.guichaguri.fastmustache.compiler.parser.MustacheParser;
 import com.guichaguri.fastmustache.compiler.parser.ParseException;
 import com.guichaguri.fastmustache.compiler.parser.tokens.MustacheToken;
@@ -186,13 +186,13 @@ public class FastMustache implements Closeable {
 
     /**
      * Compiles the template into a Java class
-     * @param dataManager The data manager
+     * @param dataSource The data source
      * @return The bytes for the compiled class
      * @throws ParseException Thrown when the template couldn't be parsed
      * @throws CompilerException Thrown when the class couldn't be generated
      * @throws IOException Thrown when an IO error occurs
      */
-    public byte[] compileClass(DataManager dataManager) throws ParseException, CompilerException, IOException {
+    public byte[] compileClass(DataSource dataSource) throws ParseException, CompilerException, IOException {
         if (className == null || className.isEmpty()) {
             withAutoClassName(true);
         }
@@ -201,10 +201,10 @@ public class FastMustache implements Closeable {
             templateName = "";
         }
 
-        MustacheCompiler compiler = new MustacheCompiler(className, templateName, dataManager.getDataType());
+        MustacheCompiler compiler = new MustacheCompiler(className, templateName, dataSource.getDataType());
         compiler.insertConstructor();
         compiler.insertObjectRender();
-        compiler.insertRender(options, dataManager, parse());
+        compiler.insertRender(options, dataSource, parse());
         return compiler.toByteArray();
     }
 
@@ -217,7 +217,7 @@ public class FastMustache implements Closeable {
      * @throws IOException Thrown when an IO error occurs
      */
     public byte[] compileClass(Class<?> dataClass) throws ParseException, CompilerException, IOException {
-        return compileClass(new ClassDataManager(dataClass));
+        return compileClass(new ClassDataSource(dataClass));
     }
 
     /**
@@ -228,7 +228,7 @@ public class FastMustache implements Closeable {
      * @throws IOException Thrown when an IO error occurs
      */
     public byte[] compileSimpleClass() throws ParseException, CompilerException, IOException {
-        return compileClass(new SimpleDataManager());
+        return compileClass(new SimpleDataSource());
     }
 
     /**
@@ -240,19 +240,19 @@ public class FastMustache implements Closeable {
      * @throws IOException Thrown when an IO error occurs
      */
     public byte[] compileTypedClass(Map<String, MustacheType> types) throws ParseException, CompilerException, IOException {
-        return compileClass(new TypedDataManager(types));
+        return compileClass(new TypedDataSource(types));
     }
 
     /**
      * Compiles the template
-     * @param dataManager The data manager
+     * @param dataSource The data source
      * @return The compiled template instance
      * @throws ParseException Thrown when the template couldn't be parsed
      * @throws CompilerException Thrown when the class couldn't be generated
      * @throws IOException Thrown when an IO error occurs
      */
-    public Template<?> compile(DataManager dataManager) throws ParseException, CompilerException, IOException {
-        Class<?> clazz = classLoader.loadClass(className, compileClass(dataManager));
+    public Template<?> compile(DataSource dataSource) throws ParseException, CompilerException, IOException {
+        Class<?> clazz = classLoader.loadClass(className, compileClass(dataSource));
 
         try {
             return (Template<?>) clazz.getConstructor().newInstance();
@@ -271,7 +271,7 @@ public class FastMustache implements Closeable {
      * @throws IOException Thrown when an IO error occurs
      */
     public <T> Template<T> compile(Class<T> dataClass) throws ParseException, CompilerException, IOException {
-        return (Template<T>) compile(new ClassDataManager(dataClass));
+        return (Template<T>) compile(new ClassDataSource(dataClass));
     }
 
     /**
@@ -282,7 +282,7 @@ public class FastMustache implements Closeable {
      * @throws IOException Thrown when an IO error occurs
      */
     public Template<TemplateData> compileSimple() throws ParseException, CompilerException, IOException {
-        return (Template<TemplateData>) compile(new SimpleDataManager());
+        return (Template<TemplateData>) compile(new SimpleDataSource());
     }
 
     /**
@@ -294,7 +294,7 @@ public class FastMustache implements Closeable {
      * @throws IOException Thrown when an IO error occurs
      */
     public Template<TemplateData> compileTyped(Map<String, MustacheType> types) throws ParseException, CompilerException, IOException {
-        return (Template<TemplateData>) compile(new TypedDataManager(types));
+        return (Template<TemplateData>) compile(new TypedDataSource(types));
     }
 
     @Override

@@ -10,7 +10,7 @@ import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 import java.util.List;
 
-import static com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator2.*;
+import static com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator.*;
 import static org.objectweb.asm.Opcodes.*;
 
 public class MustacheCompiler {
@@ -105,7 +105,7 @@ public class MustacheCompiler {
      * @throws CompilerException Thrown when an error occurs while generating the instructions
      */
     public void insertRender(CompilerOptions options, DataSource data, List<MustacheToken> tokens) throws CompilerException {
-        BytecodeGenerator2 generator = new BytecodeGenerator2(this, options, data);
+        BytecodeGenerator generator = new BytecodeGenerator(this, options, data);
         generator.start(TextToken.getMinimumLength(tokens));
         generator.add(tokens);
         generator.end();

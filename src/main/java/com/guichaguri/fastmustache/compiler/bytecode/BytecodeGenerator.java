@@ -14,7 +14,7 @@ import java.util.*;
 
 import static org.objectweb.asm.Opcodes.*;
 
-public class BytecodeGenerator2 {
+public class BytecodeGenerator {
 
     public static final Type TEMPLATE = Type.getType(Template.class);
     public static final Type SIMPLE_TEMPLATE = Type.getType(SimpleTemplate.class);
@@ -45,7 +45,7 @@ public class BytecodeGenerator2 {
     protected String name;
     protected int lambdaCount = 0;
 
-    public BytecodeGenerator2(MustacheCompiler compiler, CompilerOptions options, DataSource data) {
+    public BytecodeGenerator(MustacheCompiler compiler, CompilerOptions options, DataSource data) {
         this.compiler = compiler;
         this.options = options;
         this.data = data;
@@ -119,6 +119,7 @@ public class BytecodeGenerator2 {
     protected LocalVariable insertLocalStart(String desc, Class<?> clazz, boolean declared, Label start) {
         // Tries to reuse a local variable that is not being used anymore
         // This optimizes the amount of pointers
+        // TODO add a new variable with same index, doesnt matter if the type is different, the only requirement it to have ended before starting this one
         for (LocalVariable local : locals) {
             if (local.desc.equals(desc) && local.end != null && local.declared == declared) {
                 local.end = null;
@@ -168,7 +169,7 @@ public class BytecodeGenerator2 {
      */
     public void add(List<MustacheToken> tokens) throws CompilerException {
         for(MustacheToken token : tokens) {
-            token.add(this, data);
+            token.add(this);
         }
     }
 
@@ -525,7 +526,7 @@ public class BytecodeGenerator2 {
         // Allocate variables
         LocalVariable varCollection = null;
         LocalVariable varIterator = insertLocalStart("Ljava/util/Iterator;", Iterator.class, false, sectionStart);
-        LocalVariable varObject = insertLocalStart(OBJECT.getDescriptor(), Object.class, false, sectionStart);
+        LocalVariable varObject = insertLocalStart(Type.getDescriptor(component), component, false, sectionStart);
 
         if (options.isArrayNullChecksEnabled()) {
             // As we'll have to use the collection twice, we'll store it in a variable
@@ -561,7 +562,7 @@ public class BytecodeGenerator2 {
         mv.visitVarInsn(ASTORE, varObject.index);
 
         // Loads the variable into the data manager, so it can use its properties
-        data.loadDataItem(context, varObject);// TODO correct type
+        data.loadDataItem(context, varObject);
 
         // Inserts all tokens inside the loop
         add(token.content);

@@ -1,6 +1,5 @@
 package com.guichaguri.fastmustache.compiler.bytecode.data;
 
-import com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator2;
 import com.guichaguri.fastmustache.compiler.bytecode.CompilerException;
 import com.guichaguri.fastmustache.compiler.bytecode.LocalVariable;
 import com.guichaguri.fastmustache.data.ScopedData;
@@ -12,7 +11,7 @@ import org.objectweb.asm.Type;
 import java.util.Collections;
 import java.util.List;
 
-import static com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator2.*;
+import static com.guichaguri.fastmustache.compiler.bytecode.BytecodeGenerator.*;
 import static org.objectweb.asm.Opcodes.*;
 
 /**
