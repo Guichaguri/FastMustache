@@ -6,12 +6,20 @@ package com.guichaguri.fastmustache.template;
 public interface TemplateData {
 
     /**
+     * Gets an object
+     *
+     * @param key The property key
+     * @return The object
+     */
+    Object get(String key);
+
+    /**
      * Gets an escaped string
      *
      * @param key The property key
      * @return The escaped string
      */
-    default String get(String key) {
+    default String getEscaped(String key) {
         String o = getUnescaped(key);
         if(o == null) return null;
 
@@ -52,7 +60,7 @@ public interface TemplateData {
      * @param key The property key
      * @return The lambda function
      */
-    MustacheLambda getLambda(String key);
+    MustacheLambda<TemplateData> getLambda(String key);
 
     /**
      * Gets a data object.
@@ -62,12 +70,18 @@ public interface TemplateData {
      */
     TemplateData getData(String key);
 
-    SimpleTemplate getPartial(String key);//TODO?
+    /**
+     * Gets a partial template.
+     *
+     * @param key The property key
+     * @return The template
+     */
+    Template<TemplateData> getPartial(String key);
 
     /**
      * Gets the type of a property.
      *
-     * Returns {@link MustacheType#UNKNOWN} if it's not found or invalid.
+     * Returns {@link MustacheType#UNKNOWN} if the property is not found or invalid.
      *
      * @param key The property key
      * @return The type value

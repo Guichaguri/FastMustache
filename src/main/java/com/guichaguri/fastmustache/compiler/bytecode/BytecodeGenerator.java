@@ -17,7 +17,6 @@ import static org.objectweb.asm.Opcodes.*;
 public class BytecodeGenerator {
 
     public static final Type TEMPLATE = Type.getType(Template.class);
-    public static final Type SIMPLE_TEMPLATE = Type.getType(SimpleTemplate.class);
     public static final Type MUSTACHE_TYPE = Type.getType(MustacheType.class);
     public static final Type LAMBDA = Type.getType(MustacheLambda.class);
     public static final Type SECTION = Type.getType(Section.class);

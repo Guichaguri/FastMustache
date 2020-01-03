@@ -153,7 +153,7 @@ public class SimpleDataSource implements DataSource {
         // data.getPartial(key)
         mv.visitLdcInsn(key);
         mv.visitMethodInsn(INVOKEINTERFACE, DATA.getInternalName(), "getPartial",
-                Type.getMethodDescriptor(SIMPLE_TEMPLATE, STRING), true);
+                Type.getMethodDescriptor(TEMPLATE, STRING), true);
 
         // Loads the data into the stack
         var.load(mv);
