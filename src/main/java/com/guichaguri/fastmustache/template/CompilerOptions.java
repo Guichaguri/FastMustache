@@ -12,10 +12,11 @@ public class CompilerOptions {
     private boolean escapingEnabled = true;
 
     private PartialResolver resolver;
-    private boolean variableNullChecksEnabled = false;
+    private boolean variableNullChecksEnabled = false; // Whether it will null check variables before
     private boolean booleanNullChecksEnabled = false;
     private boolean arrayNullChecksEnabled = false;
     private boolean partialNullChecksEnabled = false;
+    private boolean explodeDataSectionProperties = false; // Whether it will explode data objects in non-null sections
 
     public String getDelimiterLeft() {
         return delimiterLeft;
@@ -75,5 +76,13 @@ public class CompilerOptions {
 
     public void setDelimiterRight(String delimiterRight) {
         this.delimiterRight = delimiterRight;
+    }
+
+    public boolean isExplodeDataSectionProperties() {
+        return explodeDataSectionProperties;
+    }
+
+    public void setExplodeDataSectionProperties(boolean explodeDataSectionProperties) {
+        this.explodeDataSectionProperties = explodeDataSectionProperties;
     }
 }

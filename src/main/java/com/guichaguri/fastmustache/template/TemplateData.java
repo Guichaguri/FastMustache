@@ -87,8 +87,6 @@ public interface TemplateData {
                 data[i] = TemplateUtils.fromObject(Array.get(o, i));
             }
 
-
-
             return data;
 
         } else if (o instanceof Collection) {

@@ -199,38 +199,12 @@ public class ClassDataSource implements DataSource {
         Member last = members[members.length - 1];
 
         if (last instanceof Method) {
-            return getType(((Method) last).getReturnType());
+            return MustacheType.getByClass(((Method) last).getReturnType());
         } else if (last instanceof Field) {
-            return getType(((Field) last).getType());
+            return MustacheType.getByClass(((Field) last).getType());
         }
 
         return MustacheType.UNKNOWN;
-    }
-
-    private MustacheType getType(Class<?> c) {
-        if(c.isPrimitive()) {
-            if(c == boolean.class) {
-                return MustacheType.BOOLEAN;
-            }
-
-            // Any primitive can be converted into a string
-            return MustacheType.STRING;
-        }
-
-        if(Boolean.class.isAssignableFrom(c)) {
-            return MustacheType.BOOLEAN;
-        } else if(MustacheLambda.class.isAssignableFrom(c)) {
-            return MustacheType.LAMBDA;
-        } else if(String.class.isAssignableFrom(c) || Number.class.isAssignableFrom(c)) {
-            return MustacheType.STRING;
-        } else if(c.isArray() || Collection.class.isAssignableFrom(c)) {
-            return MustacheType.ARRAY;
-        } else if(Template.class.isAssignableFrom(c)) {
-            return MustacheType.PARTIAL;
-        } else {
-            // Any other object can be treated as data
-            return MustacheType.DATA;
-        }
     }
 
     /**
@@ -262,7 +236,7 @@ public class ClassDataSource implements DataSource {
     private MemberType insertGetter(MethodVisitor mv, LocalVariable var, String key, boolean basicType) {
         Class<?> clazz = var.descClass;
 
-        if (key.equals(".")) {
+        if (TemplateUtils.isImplicitIterator(key)) {
             // Implicit iterator - We'll return the variable itself instead of looking for a property
             var.load(mv);
             return new MemberType(clazz, Type.getType(clazz));

@@ -61,7 +61,8 @@ public class TemplateUtils {
         } else if(o instanceof Map) {
             return new MapData((Map<String, Object>) o);
         } else if(o instanceof CharSequence || o instanceof Number || o instanceof Boolean ||
-                o instanceof Collection || o.getClass().isArray() || o instanceof Template) {
+                o instanceof Collection || o.getClass().isArray() ||
+                o instanceof Template || o instanceof MustacheLambda) {
             // All "reserved" types will be passed into an implicit data
             return new ImplicitData(o);
         } else {
