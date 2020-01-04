@@ -1,8 +1,9 @@
 package com.guichaguri.fastmustache.template;
 
+import com.guichaguri.fastmustache.data.ImplicitData;
 import com.guichaguri.fastmustache.data.MapData;
 import com.guichaguri.fastmustache.data.ObjectData;
-import com.guichaguri.fastmustache.data.ScopedData;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -11,50 +12,13 @@ import java.util.Map;
 public class TemplateUtils {
 
     /**
-     * Renders a Mustache section.
-     * This is only used when the type is not specified at compile time.
-     *
-     * @param builder  The builder
-     * @param data     The template data
-     * @param key      The section key
-     * @param template The section renderer
-     * @param inverted Whether this section is inverted
-     * @return The builder
-     */
-    public static StringBuilder renderSection(StringBuilder builder, TemplateData data, String key, SimpleTemplate template, boolean inverted) {
-        // Don't change the method name or descriptor without also changing it in the invoke bytecode instructions
-        MustacheType type = data.getType(key);
-
-        if(type == MustacheType.BOOLEAN) {
-            if(data.getBoolean(key) == !inverted) {
-                builder.append(template.render(data));
-            }
-        } else if(type == MustacheType.LAMBDA) {
-            data.getLambda(key).render(builder, template, data);
-        } else if(type == MustacheType.ARRAY) {
-            TemplateData[] array = data.getArray(key);
-
-            if(array.length == 0 && inverted) {
-                builder.append(template.render(data));
-            }
-
-            for(TemplateData d : array) {
-                builder.append(template.render(d));
-            }
-        } else if(type == MustacheType.DATA) {
-            builder.append(template.render(new ScopedData(data, data.getData(key))));
-        }
-
-        return builder;
-    }
-
-    /**
      * Simple way to escape a string.
      *
      * @param string The original string
      * @return The escaped string
      */
     public static String escapeString(String string) {
+        // Note: This method is invoked in compiled templates
         // Don't change the method name or descriptor without also changing it in the invoke bytecode instructions
         StringBuilder builder = new StringBuilder();
 
@@ -79,6 +43,10 @@ public class TemplateUtils {
         return builder.toString();
     }
 
+    public static boolean isImplicitIterator(String key) {
+        return key.equals(".");
+    }
+
     /**
      * Gets or creates a {@link TemplateData} from a {@link Object}
      *
@@ -91,7 +59,11 @@ public class TemplateUtils {
         } else if(o instanceof TemplateData) {
             return (TemplateData)o;
         } else if(o instanceof Map) {
-            return new MapData((Map)o);
+            return new MapData((Map<String, Object>) o);
+        } else if(o instanceof CharSequence || o instanceof Number || o instanceof Boolean ||
+                o instanceof Collection || o.getClass().isArray() || o instanceof Template) {
+            // All "reserved" types will be passed into an implicit data
+            return new ImplicitData(o);
         } else {
             return new ObjectData(o);
         }

@@ -1,8 +1,14 @@
 package com.guichaguri.fastmustache.template;
 
+import java.lang.reflect.Array;
+import java.util.Collection;
+
 /**
+ * Represents a data adapter class for the "simple" and "typed" compilation types.
+ *
  * @author Guichaguri
  */
+@FunctionalInterface
 public interface TemplateData {
 
     /**
@@ -32,7 +38,10 @@ public interface TemplateData {
      * @param key The property key
      * @return The unescaped string
      */
-    String getUnescaped(String key);
+    default String getUnescaped(String key) {
+        Object o = get(key);
+        return o == null ? null : o.toString();
+    }
 
     /**
      * Gets a boolean.
@@ -42,7 +51,17 @@ public interface TemplateData {
      * @param key The property key
      * @return The boolean value
      */
-    boolean getBoolean(String key);
+    default boolean getBoolean(String key) {
+        Object o = get(key);
+
+        if(o == null) {
+            return false;
+        } else if(o instanceof Boolean) {
+            return (Boolean) o;
+        } else {
+            return true;
+        }
+    }
 
     /**
      * Gets a data array.
@@ -52,7 +71,43 @@ public interface TemplateData {
      * @param key The property key
      * @return The array
      */
-    TemplateData[] getArray(String key);
+    default TemplateData[] getArray(String key) {
+        Object o = get(key);
+
+        if (o instanceof TemplateData[]) {
+
+            return (TemplateData[]) o;
+
+        } else if (o.getClass().isArray()) {
+
+            int length = Array.getLength(o);
+            TemplateData[] data = new TemplateData[length];
+
+            for(int i = 0; i < length; i++) {
+                data[i] = TemplateUtils.fromObject(Array.get(o, i));
+            }
+
+
+
+            return data;
+
+        } else if (o instanceof Collection) {
+
+            Collection<?> collection = (Collection<?>) o;
+            int length = collection.size();
+            TemplateData[] data = new TemplateData[length];
+            int i = 0;
+
+            for(Object obj : collection) {
+                data[i++] = TemplateUtils.fromObject(obj);
+            }
+
+            return data;
+
+        }
+
+        return null;
+    }
 
     /**
      * Gets a lambda renderer.
@@ -60,7 +115,15 @@ public interface TemplateData {
      * @param key The property key
      * @return The lambda function
      */
-    MustacheLambda<TemplateData> getLambda(String key);
+    default MustacheLambda<TemplateData> getLambda(String key) {
+        Object o = get(key);
+
+        if(o instanceof MustacheLambda) {
+            return (MustacheLambda<TemplateData>) o;
+        }
+
+        return null;
+    }
 
     /**
      * Gets a data object.
@@ -68,7 +131,9 @@ public interface TemplateData {
      * @param key The property key
      * @return The data object
      */
-    TemplateData getData(String key);
+    default TemplateData getData(String key) {
+        return TemplateUtils.fromObject(get(key));
+    }
 
     /**
      * Gets a partial template.
@@ -76,7 +141,15 @@ public interface TemplateData {
      * @param key The property key
      * @return The template
      */
-    Template<TemplateData> getPartial(String key);
+    default Template<TemplateData> getPartial(String key) {
+        Object o = get(key);
+
+        if (o instanceof Template) {
+            return (Template<TemplateData>) o;
+        }
+
+        return null;
+    }
 
     /**
      * Gets the type of a property.
@@ -86,7 +159,9 @@ public interface TemplateData {
      * @param key The property key
      * @return The type value
      */
-    MustacheType getType(String key);
+    default MustacheType getType(String key) {
+        return MustacheType.getByObject(get(key));
+    }
 
     /**
      * Gets whether a property exists.
@@ -94,6 +169,8 @@ public interface TemplateData {
      * @param key The property key
      * @return Whether the property exists
      */
-    boolean hasProperty(String key);
+    default boolean hasProperty(String key) {
+        return get(key) != null;
+    }
 
 }

@@ -7,6 +7,11 @@ package com.guichaguri.fastmustache.template;
  */
 public interface Template<T> {
 
+    /**
+     * Renders the template into a string
+     * @param data The data object
+     * @return The rendered template
+     */
     String render(T data);
 
 }

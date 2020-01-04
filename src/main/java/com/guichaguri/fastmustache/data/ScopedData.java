@@ -1,11 +1,11 @@
 package com.guichaguri.fastmustache.data;
 
-import com.guichaguri.fastmustache.template.MustacheLambda;
-import com.guichaguri.fastmustache.template.MustacheType;
-import com.guichaguri.fastmustache.template.SimpleTemplate;
-import com.guichaguri.fastmustache.template.TemplateData;
+import com.guichaguri.fastmustache.template.*;
 
 /**
+ * Implements a {@link TemplateData} under a scope.
+ * Also used internally to render templates.
+ *
  * @author Guichaguri
  */
 public class ScopedData implements TemplateData {
@@ -18,8 +18,13 @@ public class ScopedData implements TemplateData {
     }
 
     @Override
-    public String get(String key) {
+    public Object get(String key) {
         return scoped.hasProperty(key) ? scoped.get(key) : original.get(key);
+    }
+
+    @Override
+    public String getEscaped(String key) {
+        return scoped.hasProperty(key) ? scoped.getEscaped(key) : original.getEscaped(key);
     }
 
     @Override
@@ -38,7 +43,7 @@ public class ScopedData implements TemplateData {
     }
 
     @Override
-    public MustacheLambda getLambda(String key) {
+    public MustacheLambda<TemplateData> getLambda(String key) {
         return scoped.hasProperty(key) ? scoped.getLambda(key) : original.getLambda(key);
     }
 
@@ -48,7 +53,7 @@ public class ScopedData implements TemplateData {
     }
 
     @Override
-    public SimpleTemplate getPartial(String key) {
+    public Template<TemplateData> getPartial(String key) {
         return scoped.hasProperty(key) ? scoped.getPartial(key) : original.getPartial(key);
     }
 
