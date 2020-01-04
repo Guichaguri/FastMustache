@@ -54,7 +54,7 @@ public class BytecodeGenerator {
      * Starts building the render method
      * @param minimumLength The minimum capacity for the StringBuilder
      */
-    public void start(int minimumLength) {
+    public void start(int minimumLength) throws CompilerException {
         Type dataType = data.getDataType();
         Class<?> dataClass = data.getDataClass();
 
@@ -93,6 +93,7 @@ public class BytecodeGenerator {
         context = data.createContext(this, mv, dataVar);
 
         stack.push(builderVar);
+        data.loadDataItem(context, dataVar);
     }
 
     public void end() {
@@ -116,18 +117,31 @@ public class BytecodeGenerator {
     }
 
     protected LocalVariable insertLocalStart(String desc, Class<?> clazz, boolean declared, Label start) {
-        // Tries to reuse a local variable that is not being used anymore
-        // This optimizes the amount of pointers
-        // TODO add a new variable with same index, doesnt matter if the type is different, the only requirement it to have ended before starting this one
+        int index = locals.size();
+
+        // Tries to reuse indexes that are not being used anymore
         for (LocalVariable local : locals) {
-            if (local.desc.equals(desc) && local.end != null && local.declared == declared) {
-                local.end = null;
-                return local;
+            // Looks for variables that have ended
+            if (local.end != null) {
+                boolean beingUsed = false;
+
+                // Looks if there is another variable using the same index and have not yet ended
+                for(LocalVariable local2 : locals) {
+                    if (local.index == local2.index && local2.end == null) {
+                        beingUsed = true;
+                        break;
+                    }
+                }
+
+                if (!beingUsed) {
+                    index = local.index;
+                    break;
+                }
             }
         }
 
         // Creates a new local variable
-        LocalVariable local = new LocalVariable(locals.size(), desc, clazz, declared);
+        LocalVariable local = new LocalVariable(index, desc, clazz, declared);
         local.start = start;
         locals.add(local);
         return local;
@@ -157,7 +171,7 @@ public class BytecodeGenerator {
         var.pop(mv);
     }
 
-    protected void clearStack() {
+    public void clearStack() {
         while(!stack.empty()) {
             popVarStack();
         }

@@ -16,9 +16,4 @@ public class DataSourceContext {
         this.mv = mv;
     }
 
-    public DataSourceContext(BytecodeGenerator generator, MethodVisitor mv, LocalVariable var) {
-        this(generator, mv);
-        vars.add(var);
-    }
-
 }

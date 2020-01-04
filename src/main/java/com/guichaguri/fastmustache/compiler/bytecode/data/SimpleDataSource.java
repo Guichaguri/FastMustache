@@ -169,6 +169,8 @@ public class SimpleDataSource implements DataSource {
             MethodVisitor mv = context.mv;
             LocalVariable topVar = context.vars.getLast();
 
+            context.generator.clearStack();
+
             // d = new ScopedData(data, d);
             mv.visitTypeInsn(NEW, SCOPED_DATA.getInternalName());
             mv.visitInsn(DUP);

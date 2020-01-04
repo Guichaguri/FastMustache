@@ -35,7 +35,7 @@ public interface DataSource {
      * @return The context that will be reused in other methods
      */
     default DataSourceContext createContext(BytecodeGenerator generator, MethodVisitor mv, LocalVariable data) {
-        return new DataSourceContext(generator, mv, data);
+        return new DataSourceContext(generator, mv);
     }
 
     /**
