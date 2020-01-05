@@ -2,6 +2,7 @@ package com.guichaguri.fastmustache.compiler.bytecode.data;
 
 import com.guichaguri.fastmustache.compiler.bytecode.CompilerException;
 import com.guichaguri.fastmustache.compiler.bytecode.LocalVariable;
+import com.guichaguri.fastmustache.compiler.util.resolver.ClassMemberResolver;
 import com.guichaguri.fastmustache.template.*;
 import java.lang.reflect.Field;
 import java.lang.reflect.Member;
@@ -25,10 +26,16 @@ import static org.objectweb.asm.Opcodes.*;
 public class ClassDataSource implements DataSource {
     private final Class<?> clazz;
     private final Type clazzType;
+    private final ClassMemberResolver resolver;
 
     public ClassDataSource(Class<?> clazz) {
+        this(clazz, ClassMemberResolver.getInstance());
+    }
+
+    public ClassDataSource(Class<?> clazz, ClassMemberResolver resolver) {
         this.clazz = clazz;
         this.clazzType = Type.getType(clazz);
+        this.resolver = resolver;
     }
 
     @Override
@@ -148,6 +155,7 @@ public class ClassDataSource implements DataSource {
         }
 
         Class<?> dataObject = type.getComponent(MustacheLambda.class);
+        if (dataObject == null) dataObject = Object.class;
 
         return new MemberType(dataObject, Type.getType(dataObject));
     }
@@ -161,6 +169,8 @@ public class ClassDataSource implements DataSource {
         }
 
         Class<?> dataClass = type.getComponent(Template.class);
+        if (dataClass == null) dataClass = Object.class;
+
         LinkedList<LocalVariable> vars = context.vars;
 
         for(int i = vars.size() - 1; i >= 0; i--) {
@@ -190,7 +200,7 @@ public class ClassDataSource implements DataSource {
     }
 
     private MustacheType getType(Class<?> clazz, String key) {
-        Member[] members = findPath(clazz, key);
+        Member[] members = resolver.findPath(clazz, key);
 
         if (members == null || members.length == 0) {
             return MustacheType.UNKNOWN;
@@ -242,7 +252,7 @@ public class ClassDataSource implements DataSource {
             return new MemberType(clazz, Type.getType(clazz));
         }
 
-        Member[] members = findPath(clazz, key);
+        Member[] members = resolver.findPath(clazz, key);
         if(members == null || members.length == 0) {
             return null;
         }
@@ -288,78 +298,6 @@ public class ClassDataSource implements DataSource {
         }
 
         // The code should never reach here
-        return null;
-    }
-
-    /**
-     * Finds the object path through fields and getters
-     * @param start The start class
-     * @param key The path
-     * @return The list of members composing this path or {@code null} if the path is invalid
-     */
-    private Member[] findPath(Class<?> start, String key) {
-        Class<?> context = start;
-        String[] path = key.split("\\.");
-        Member[] members = new Member[path.length];
-
-        for(int i = 0; i < path.length; i++) {
-            String k = path[i];
-
-            Method m = getMethod(context, k);
-            if(m != null) {
-                members[i] = m;
-                context = m.getReturnType();
-                continue;
-            }
-
-            Field f = getField(context, k);
-            if(f != null) {
-                members[i] = f;
-                context = f.getType();
-                continue;
-            }
-
-            return null;
-        }
-
-        return members;
-    }
-
-    /**
-     * Tries to find a field with the specified name
-     * @param clazz The class to look into
-     * @param key The field name
-     * @return The field or {@code null}
-     */
-    private Field getField(Class<?> clazz, String key) {
-        try {
-            return clazz.getField(key);
-        } catch(Exception ex) {
-            return null;
-        }
-    }
-
-    /**
-     * Tries to find a getter method with the specified name
-     * @param clazz The class to look into
-     * @param key The method name
-     * @return The method or {@code null}
-     */
-    private Method getMethod(Class<?> clazz, String key) {
-        try {
-            return clazz.getMethod(key);
-        } catch(Exception ignored) {}
-
-        String camelCase = Character.toUpperCase(key.charAt(0)) + key.substring(1);
-
-        try {
-            return clazz.getMethod("get" + camelCase);
-        } catch(Exception ignored) {}
-
-        try {
-            return clazz.getMethod("is" + camelCase);
-        } catch(Exception ignored) {}
-
         return null;
     }
 

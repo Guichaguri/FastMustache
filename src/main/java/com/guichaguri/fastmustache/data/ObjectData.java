@@ -1,8 +1,11 @@
 package com.guichaguri.fastmustache.data;
 
+import com.guichaguri.fastmustache.compiler.util.resolver.ClassMemberResolver;
 import com.guichaguri.fastmustache.template.TemplateData;
 import com.guichaguri.fastmustache.template.TemplateUtils;
 import java.lang.reflect.Field;
+import java.lang.reflect.Member;
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -12,29 +15,51 @@ import java.util.Map;
  * @author Guichaguri
  */
 public class ObjectData implements TemplateData {
-    private final Object obj;
     private final Class<?> clazz;
-    private final Map<String, Field> fields = new HashMap<>();
+    private final ClassMemberResolver resolver;
+    private final Map<String, Member[]> members = new HashMap<>();
 
-    public ObjectData(Object obj) {
+    private Object obj;
+
+    public ObjectData(Object obj, ClassMemberResolver resolver) {
         this.obj = obj;
         this.clazz = obj.getClass();
+        this.resolver = resolver;
+
+        if (!resolver.isValid(clazz)) {
+            throw new IllegalArgumentException("The class " + clazz.getName() + " isn't a valid POJO.");
+        }
     }
 
-    private Field getField(String key) {
-        // Uses cached fields to improve performance
-        if (fields.containsKey(key)) {
-            return fields.get(key);
+    public ObjectData(Object obj) {
+        this(obj, ClassMemberResolver.getInstance());
+    }
+
+    /**
+     * Changes the data object as long as it is the same class as the original object.
+     *
+     * @param obj The object
+     */
+    public void setObject(Object obj) {
+        if (!clazz.isAssignableFrom(obj.getClass())) {
+            throw new IllegalArgumentException("Object must be assignable of " + clazz.getName());
+        }
+        this.obj = obj;
+    }
+
+    public Object getObject() {
+        return obj;
+    }
+
+    private Member[] find(String key) {
+        // Uses cached handles to improve performance
+        if (members.containsKey(key)) {
+            return members.get(key);
         }
 
-        try {
-            Field field = clazz.getField(key);
-            fields.put(key, field);
-            return field;
-        } catch(Exception ex) {
-            fields.put(key, null);
-            return null;
-        }
+        Member[] path = resolver.findPath(clazz, key);
+        members.put(key, path);
+        return path;
     }
 
     @Override
@@ -42,8 +67,22 @@ public class ObjectData implements TemplateData {
         if (TemplateUtils.isImplicitIterator(key)) return obj;
 
         try {
-            Field field = getField(key);
-            return field == null ? null : field.get(obj);
+            Member[] members = find(key);
+            if (members == null) return null;
+
+            Object o = obj;
+
+            for(Member member : members) {
+                if (o == null) {
+                    return null;
+                } else if (member instanceof Field) {
+                    o = ((Field) member).get(o);
+                } else if (member instanceof Method) {
+                    o = ((Method) member).invoke(o);
+                }
+            }
+
+            return o;
         } catch(Exception ex) {
             return null;
         }
@@ -51,6 +90,6 @@ public class ObjectData implements TemplateData {
 
     @Override
     public boolean hasProperty(String key) {
-        return TemplateUtils.isImplicitIterator(key) || getField(key) != null;
+        return TemplateUtils.isImplicitIterator(key) || find(key) != null;
     }
 }
