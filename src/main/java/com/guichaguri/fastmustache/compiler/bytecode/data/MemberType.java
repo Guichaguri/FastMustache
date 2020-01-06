@@ -34,6 +34,17 @@ public class MemberType {
         this.genericType = method.getGenericReturnType();
     }
 
+    /**
+     * Gets the component class from base type class.
+     *
+     * This won't work for Java 8 lambdas or when the generics types are not specified.
+     * It will work on arrays, nested argument variables and wildcard arguments.
+     *
+     * It will return {@code null} or {@link Object} when the type couldn't be resolved properly.
+     *
+     * @param baseType The base class
+     * @return The argument type
+     */
     public Class<?> getComponent(Class<?> baseType) {
         if(clazz.isArray()) {
             return clazz.getComponentType();
@@ -42,6 +53,14 @@ public class MemberType {
         }
     }
 
+    /**
+     * Gets the component class.
+     *
+     * This won't work for Java 8 lambdas or when the generics types are not directly specified.
+     * It will work on arrays, but not on nested argument variables and wildcard arguments.
+     *
+     * @return The argument type
+     */
     public Class<?> getComponent() {
         if(clazz.isArray()) {
             return clazz.getComponentType();

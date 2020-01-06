@@ -58,7 +58,7 @@ public class GenericResolver {
                 return true;
             }
 
-            return found;
+            return true;
         }
 
         throw new RuntimeException("The " + type.getClass() + " is not supported.");

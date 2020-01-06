@@ -1,6 +1,7 @@
 package com.guichaguri.fastmustache.compiler.bytecode.data;
 
 import com.guichaguri.fastmustache.compiler.bytecode.CompilerException;
+import com.guichaguri.fastmustache.compiler.bytecode.CompilerUtils;
 import com.guichaguri.fastmustache.compiler.bytecode.LocalVariable;
 import com.guichaguri.fastmustache.compiler.util.resolver.ClassMemberResolver;
 import com.guichaguri.fastmustache.template.*;
@@ -126,13 +127,8 @@ public class ClassDataSource implements DataSource {
     public void insertTypeGetter(DataSourceContext context, String key) {
         int type = getType(context, key).ordinal();
 
-        if (type < Byte.MAX_VALUE) {
-            // Loads a byte into the stack
-            context.mv.visitIntInsn(BIPUSH, type);
-        } else {
-            // Loads an int into the stack
-            context.mv.visitLdcInsn(type);
-        }
+        // Loads the ordinal number into the stack
+        CompilerUtils.loadInteger(context.mv, type);
     }
 
     @Override

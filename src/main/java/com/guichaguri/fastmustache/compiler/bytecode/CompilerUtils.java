@@ -1,8 +1,11 @@
 package com.guichaguri.fastmustache.compiler.bytecode;
 
 import com.guichaguri.fastmustache.compiler.bytecode.data.MemberType;
+import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.tree.*;
 import java.util.List;
+
+import static org.objectweb.asm.Opcodes.*;
 
 public class CompilerUtils {
 
@@ -69,6 +72,44 @@ public class CompilerUtils {
             } else if (localNode.index > index) {
                 localNode.index--;
             }
+        }
+    }
+
+    public static void loadInteger(MethodVisitor mv, int number) {
+        // Loads a constant instruction where possible
+        switch (number) {
+            case -1:
+                mv.visitInsn(ICONST_M1);
+                return;
+            case 0:
+                mv.visitInsn(ICONST_0);
+                return;
+            case 1:
+                mv.visitInsn(ICONST_1);
+                return;
+            case 2:
+                mv.visitInsn(ICONST_2);
+                return;
+            case 3:
+                mv.visitInsn(ICONST_3);
+                return;
+            case 4:
+                mv.visitInsn(ICONST_4);
+                return;
+            case 5:
+                mv.visitInsn(ICONST_5);
+                return;
+        }
+
+        if (number > Byte.MIN_VALUE && number < Byte.MAX_VALUE) {
+            // Loads a byte into the stack
+            mv.visitIntInsn(BIPUSH, number);
+        } else if (number > Short.MIN_VALUE && number < Short.MAX_VALUE) {
+            // Loads a short into the stack
+            mv.visitIntInsn(SIPUSH, number);
+        } else {
+            // Loads an int into the stack
+            mv.visitLdcInsn(number);
         }
     }
 

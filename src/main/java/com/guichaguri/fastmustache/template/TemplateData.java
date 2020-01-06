@@ -46,7 +46,8 @@ public interface TemplateData {
     /**
      * Gets a boolean.
      *
-     * Returns {@code false} if the value is not found or is not a boolean.
+     * Returns {@code false} if the value is not found.
+     * Returns {@code true} if the value is not a boolean.
      *
      * @param key The property key
      * @return The boolean value

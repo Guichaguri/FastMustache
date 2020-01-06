@@ -46,25 +46,30 @@ public enum MustacheType {
      */
     UNKNOWN;
 
-    public static MustacheType getByClass(Class<?> c) {
-        if(c.isPrimitive()) {
-            if(c == boolean.class) {
+    /**
+     * Gets the equivalent type from a class
+     * @param clazz The class
+     * @return The type
+     */
+    public static MustacheType getByClass(Class<?> clazz) {
+        if(clazz.isPrimitive()) {
+            if(clazz == boolean.class) {
                 return BOOLEAN;
             }
 
-            // Any primitive can be converted into a string
+            // Any other primitive can be converted into a string
             return STRING;
         }
 
-        if(Boolean.class.isAssignableFrom(c)) {
+        if(Boolean.class.isAssignableFrom(clazz)) {
             return BOOLEAN;
-        } else if(MustacheLambda.class.isAssignableFrom(c)) {
+        } else if(MustacheLambda.class.isAssignableFrom(clazz)) {
             return LAMBDA;
-        } else if(CharSequence.class.isAssignableFrom(c) || Number.class.isAssignableFrom(c)) {
+        } else if(CharSequence.class.isAssignableFrom(clazz) || Number.class.isAssignableFrom(clazz) || clazz == Character.class) {
             return STRING;
-        } else if(c.isArray() || Collection.class.isAssignableFrom(c)) {
+        } else if(clazz.isArray() || Collection.class.isAssignableFrom(clazz)) {
             return ARRAY;
-        } else if(Template.class.isAssignableFrom(c)) {
+        } else if(Template.class.isAssignableFrom(clazz)) {
             return PARTIAL;
         } else {
             // Any other object can be treated as data
@@ -72,17 +77,22 @@ public enum MustacheType {
         }
     }
 
-    public static MustacheType getByObject(Object o) {
-        if(o == null || o instanceof Boolean) {
+    /**
+     * Gets the equivalent type from an object
+     * @param obj The object
+     * @return The type
+     */
+    public static MustacheType getByObject(Object obj) {
+        if(obj == null || obj instanceof Boolean) {
             // null values are considered false
             return BOOLEAN;
-        } else if(o instanceof MustacheLambda) {
+        } else if(obj instanceof MustacheLambda) {
             return LAMBDA;
-        } else if(o instanceof CharSequence || o instanceof Number) {
+        } else if(obj instanceof CharSequence || obj instanceof Number || obj instanceof Character) {
             return STRING;
-        } else if(o.getClass().isArray() || o instanceof Collection) {
+        } else if(obj.getClass().isArray() || obj instanceof Collection) {
             return ARRAY;
-        } else if (o instanceof Template) {
+        } else if (obj instanceof Template) {
             return PARTIAL;
         } else {
             // Any other object can be treated as data

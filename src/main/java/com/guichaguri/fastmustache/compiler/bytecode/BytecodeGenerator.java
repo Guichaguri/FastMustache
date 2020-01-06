@@ -70,13 +70,8 @@ public class BytecodeGenerator {
             // Initializes the builder with an initial capacity set
             // Reduces the frequency in which the builder resizes itself, thus improving the performance
 
-            if(minimumLength < Byte.MAX_VALUE) {
-                // Loads a byte into the stack
-                mv.visitIntInsn(BIPUSH, minimumLength);
-            } else {
-                // Loads an int into the stack
-                mv.visitLdcInsn(minimumLength);
-            }
+            // Loads the minimum length into the stack
+            CompilerUtils.loadInteger(mv, minimumLength);
 
             // StringBuilder(length)
             mv.visitMethodInsn(INVOKESPECIAL, BUILDER.getInternalName(), "<init>", "(I)V", false);
@@ -199,14 +194,8 @@ public class BytecodeGenerator {
             // Uses append(char)
             int c = str.charAt(0);
 
-            if(c < Byte.MAX_VALUE) {
-                // Loads a byte into the stack
-                mv.visitIntInsn(BIPUSH, c);
-            } else {
-                // Loads an int into the stack
-                mv.visitLdcInsn(c);
-            }
-
+            // Loads the char into the stack
+            CompilerUtils.loadInteger(mv, c);
             desc = Type.getMethodDescriptor(BUILDER, Type.CHAR_TYPE);
         } else {
             // Uses append(String)
@@ -691,6 +680,8 @@ public class BytecodeGenerator {
      * Adds a lot more bytecode and should be avoid whenever possible.
      */
     public void addUnknownSection(SectionToken token) throws CompilerException {
+        // TODO move instructions inside to a new method and then call that method from here as needed
+        // TODO the method should be in the same format as the lambda, so we can use it in both cases
         Label switchEnd = new Label();
         Label switchDefault = new Label();
         Label booleanSection = new Label();
